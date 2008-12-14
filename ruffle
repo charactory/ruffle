@@ -8,14 +8,17 @@ require 'fileutils'
 #include Archive::Tar
 #
 #this is an ugly way of getting the rule modules easily...
-#Dir.glob(File.dirname(__FILE__) + '/ruffle_rules/*.rb').each {|rule| require rule} 
-require 'ruffle_rules/permissions'
+Dir.glob(File.dirname(__FILE__) + '/ruffle_rules/*.rb').each {|rule| require rule} 
+#require 'ruffle_rules/permissions'
 
 class Ruffle
   def initialize
     @sandbox = '/home/colin/sandbox_namcap/'
     #@package_path = '/home/colin/c.img'
-    @package_path = '/home/colin/builds/PACKAGE_CACHE/libxft-2.1.13-2-i686.pkg.tar.gz'
+    #@package_path = '/home/colin/builds/PACKAGE_CACHE/libxft-2.1.13-2-i686.pkg.tar.gz'
+    #@package_path = '/home/colin/builds/PACKAGE_CACHE/pcmanfm-0.5-3-i686.pkg.tar.gz'
+    @package_path = '/home/colin/builds/PACKAGE_CACHE/shoes-2-1-i686.pkg.tar.gz'
+    #@package_path = '/home/colin/builds/PACKAGE_CACHE/xorg-server-1.5.3-4-i686.pkg.tar.gz'
     #@package_path = '/home/colin/builds/PACKAGE_CACHE/xulrunner-1.9.0.4-3-i686.pkg.tar.gz'
     #@package_path = '/home/colin/c.iasdkaj '
     @files = []
@@ -48,6 +51,8 @@ class Ruffle
     # 7 --> actual filepath
     `tar -tvf #{@package_path}`.split("\n").each {|x| @files << x.split(" ")}
     Permissions.check(@files)
+    Depends.analyze(@files)
+    #Depends.get_files(@files)
   end
 
   def check_p_info
