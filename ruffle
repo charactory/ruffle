@@ -1,0 +1,66 @@
+#!/usr/bin/ruby -w
+#
+
+require 'zlib'
+require 'rubygems'
+require 'facets/minitar'
+require 'fileutils'
+include Archive::Tar
+
+
+class Namcap
+  def initialize
+    @sandbox = '/home/colin/sandbox_namcap/'
+    #@package_path = '/home/colin/c.img'
+    @package_path = '/home/colin/builds/PACKAGE_CACHE/libxft-2.1.13-2-i686.pkg.tar.gz'
+    #@package_path = '/home/colin/c.iasdkaj '
+  end
+
+  def open_package
+    if not File.exist?(@sandbox)
+      begin
+      Dir.mkdir(@sandbox) 
+      tgz = Zlib::GzipReader.new(File.open(@package_path, 'rb'))
+      Minitar.unpack(tgz, @sandbox)
+
+      rescue Errno::ENOENT
+        puts "File does not exist!"
+      rescue Zlib::GzipFile::Error
+        puts "This is not a package file!"  
+      end
+    end
+  end
+
+  def check_p_info
+    package_info = "#{@sandbox}/.PKGINFO" 
+    pkginfo_vars = [:pkgname, :pkgver, :pkgdesc, :url, :builddate, :packager, :size, :arch, :license, :depend, :optdepend] 
+    pkginfo_hash = {}
+    
+    if File.exist?(package_info)
+      puts "Package info exists!"
+
+      begin
+        File.open(package_info).each do |x|
+          #x.scan(/(.*)? = (.*)/) {|x, y| puts x + "~~~" + y}
+          pkginfo_vars.each do |var|
+            x.scan(/#{var} = (.*)/) {|val| pkginfo_hash[var] = val} 
+          end
+        end
+        pkginfo_hash.each_pair {|x,y| puts "#{x} = #{y}"}
+      end
+
+    end
+    #remove for now
+    #FileUtils.rm_r(@sandbox, :secure => true)
+  end
+
+end
+
+
+module Depends
+end
+
+r_namcap = Namcap.new
+
+#r_namcap.open_package
+r_namcap.check_p_info
