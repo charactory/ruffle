@@ -6,9 +6,9 @@ require 'rubygems'
 require 'facets/minitar'
 require 'fileutils'
 include Archive::Tar
+require 'pp'
 
-
-class Namcap
+class Ruffle
   def initialize
     @sandbox = '/home/colin/sandbox_namcap/'
     #@package_path = '/home/colin/c.img'
@@ -29,6 +29,14 @@ class Namcap
         puts "This is not a package file!"  
       end
     end
+  end
+
+  def view_files
+    files = `tar -tvf #{@package_path}`.split("\n")
+    puts files[0]
+    specific_entries = files[0].split(" ")
+    pp specific_entries
+    puts specific_entries[5]
   end
 
   def check_p_info
@@ -60,7 +68,8 @@ end
 module Depends
 end
 
-r_namcap = Namcap.new
+r_namcap = Ruffle.new
 
 #r_namcap.open_package
-r_namcap.check_p_info
+#r_namcap.check_p_info
+r_namcap.view_files
