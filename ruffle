@@ -1,12 +1,15 @@
 #!/usr/bin/ruby -w
 #
 
-require 'zlib'
+#require 'zlib'
 require 'rubygems'
-require 'facets/minitar'
+#require 'facets/minitar'
 require 'fileutils'
-include Archive::Tar
-require 'pp'
+#include Archive::Tar
+#
+#this is an ugly way of getting the rule modules easily...
+#Dir.glob(File.dirname(__FILE__) + '/ruffle_rules/*.rb').each {|rule| require rule} 
+require 'ruffle_rules/permissions'
 
 class Ruffle
   def initialize
@@ -15,6 +18,7 @@ class Ruffle
     @package_path = '/home/colin/builds/PACKAGE_CACHE/libxft-2.1.13-2-i686.pkg.tar.gz'
     #@package_path = '/home/colin/builds/PACKAGE_CACHE/xulrunner-1.9.0.4-3-i686.pkg.tar.gz'
     #@package_path = '/home/colin/c.iasdkaj '
+    @files = []
   end
 
   def open_package
@@ -42,27 +46,8 @@ class Ruffle
     # 5 --> filepath
     # 6 --> symlink arrow
     # 7 --> actual filepath
-    files = []
-    `tar -tvf #{@package_path}`.split("\n").each {|x| files << x.split(" ")}
-    files.each do |file| 
-      #puts file[5] if file[0].start_with?('dr') #view directories
-      #puts file[5] #view directories
-      #puts file[0]
-      #puts file[0].scan(/.?/).each {|x| puts x}
-      case 
-      when file[0].start_with?("d")
-        puts "Is a directory"
-        puts "Is executable" if file[0].end_with?("x")
-      when file[0].start_with?("-")
-        puts "Is a file"
-        puts file[0]
-        #the following are inverted to aid testing
-        puts "Is not world writable" if not file[0][-2..-2] == "w"
-        puts "Is world readable" if file[0][-3..-3] == "r"
-      when file[0].start_with?("l")
-        puts "Is a link"
-      end
-    end
+    `tar -tvf #{@package_path}`.split("\n").each {|x| @files << x.split(" ")}
+    Permissions.check(@files)
   end
 
   def check_p_info
@@ -88,10 +73,6 @@ class Ruffle
     #FileUtils.rm_r(@sandbox, :secure => true)
   end
 
-end
-
-
-module Depends
 end
 
 r_namcap = Ruffle.new
