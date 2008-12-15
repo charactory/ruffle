@@ -39,7 +39,7 @@ module Depends
       end
     end
     @depends_files.each {|x| puts x}
-    puts "Hash length: #{puts @depends_files.length}"
+    puts "Hash length: #{@depends_files.keys.length}"
   end
 
   def Depends.extract(sandbox,package_path)
@@ -63,26 +63,61 @@ module Depends
   end
 
   def Depends.scan_libs(sandbox)
+    libcache = {"i686" => [], "x86-64" => []}
+
     @depends_files.each_pair do |file, libs|
-      raw_output = `readelf -d #{File.join(sandbox, file)}`
+      raw_output = ""
+
+      Open3.popen3("readelf -d #{file}") do |stdin, stdout, stderr|
+        raw_output = stdout.read
+        raw_error = stderr.read if not stderr.nil?
+      end
+      
+      if not raw_output =~ (/^readelf(.*)/) or not raw_output.nil?
       raw_output.split("\n").each do |line|
+        bitstring = line.split(" ")[0]
+        if not bitstring.nil?
+          libs << (bitstring.length > 10 ? "x86-64" : "i686")
+        end
+         
         libs << line.scan(/Shared library: \[(.*)\]/)
-        #file << line.scan(/Shared library: \[(.*)\]/)
       end
 
+      #print out what libraries were obtained
       @depends_files.each_value do |libs|
         libs.each {|x| puts x}
       end
 
-      # I will use array.assoc to find the shared libraries later
-      #
-      #Open3.popen3("readelf -d #{file}") do |stdin, stdout, stderr|
-      # puts stderr.gets 
-      #end
 
+
+      # @depends_files now a hash 
+      #
+
+    end
     end
   end
 
+
+  def Depends.fill_libcache
+    @libcache = {'x86-64' => {}, 'i686' => {}} if not @libcache
+    raw_output = ""
+    Open3.popen3("ldconfig -p") do |stdin, stdout, stderr|
+      raw_output = stdout.read
+      raw_error = stderr.read if not stderr.nil?
+    end
+
+    raw_output.split("\n").each do |line|
+      ld_array = line.scan(/\s*(.*) \((.*)\) => (.*)/)
+      if not ld_array.nil?
+        if ld_array[2].start_with?('libc6,x86-64')
+          @libcache['x86-64'][ld_array[1]] = ld_array[3]
+        else
+          @libcache['i686'][ld_array[1]] = ld_array[3]
+        end
+      end
+    end
+
+  end
 
 
 
