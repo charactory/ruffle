@@ -30,8 +30,8 @@ Dir.glob('/home/colin/projects/ruffle/ruffle_rules/*.rb').each {|rule| require r
 #require 'ruffle_rules/permissions'
 
 class Ruffle
+
   def initialize(package_name)
-    #@sandbox = '/home/colin/sandbox_namcap/'
     @sandbox = "#{Dir.tmpdir}/ruffle_#{Process.pid}"
     @package_path = package_name
     #@package_path = '/home/colin/builds/PACKAGE_CACHE/libxft-2.1.13-2-i686.pkg.tar.gz'
@@ -63,8 +63,6 @@ class Ruffle
     # 6 --> symlink arrow
     # 7 --> actual filepath
     `tar -tvf #{@package_path}`.split("\n").each {|x| @files << x.split(" ")}
-    Permissions.check(@files)
-    Depends.analyze(@files)
     #Depends.get_files(@files)
   end
 
@@ -78,7 +76,6 @@ class Ruffle
 
       begin
         File.open(package_info).each do |x|
-          #x.scan(/(.*)? = (.*)/) {|x, y| puts x + "~~~" + y}
           pkginfo_vars.each do |var|
             x.scan(/#{var} = (.*)/) {|val| pkginfo_hash[var] = val} 
           end
@@ -92,6 +89,7 @@ class Ruffle
   end
   
   def extract_pkginfo
+    `tar -tvf #{@package_path}`.split("\n").each {|x| @files << x.split(" ")}
     Dir.mkdir(@sandbox) 
 
     Open3.popen3("tar -C #{@sandbox} -xf #{@package_path} .PKGINFO") do |stdin, stdout, stderr|
@@ -111,6 +109,7 @@ class Ruffle
       end
     end
 
+    [Permissions, Depends].each {|rule| rule.analyze(@files, @package_path,@sandbox)} 
   end
 
 end
