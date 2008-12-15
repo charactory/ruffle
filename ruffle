@@ -18,9 +18,11 @@
 #   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 #
-#require 'zlib'
 require 'rubygems'
 require 'fileutils'
+require 'tmpdir'
+require 'open3' 
+
 #
 #this is an ugly way of getting the rule modules easily...
 #Dir.glob(File.dirname(__FILE__) + '/ruffle_rules/*.rb').each {|rule| require rule} 
@@ -30,7 +32,7 @@ Dir.glob('/home/colin/projects/ruffle/ruffle_rules/*.rb').each {|rule| require r
 class Ruffle
   def initialize(package_name)
     #@sandbox = '/home/colin/sandbox_namcap/'
-    @sandbox = Dir::tmpdir + '/ruffle_' + Process.pid
+    @sandbox = "#{Dir.tmpdir}/ruffle_#{Process.pid}"
     @package_path = package_name
     #@package_path = '/home/colin/builds/PACKAGE_CACHE/libxft-2.1.13-2-i686.pkg.tar.gz'
     #@package_path = '/home/colin/builds/PACKAGE_CACHE/pcmanfm-0.5-3-i686.pkg.tar.gz'
@@ -38,6 +40,10 @@ class Ruffle
     #@package_path = '/home/colin/builds/PACKAGE_CACHE/xorg-server-1.5.3-4-i686.pkg.tar.gz'
     #@package_path = '/home/colin/builds/PACKAGE_CACHE/xulrunner-1.9.0.4-3-i686.pkg.tar.gz'
     @files = []
+    
+    # The array of different return strings
+    @ret = [[], [], [],]
+
   end
 
   def open_package
@@ -86,8 +92,24 @@ class Ruffle
   end
   
   def extract_pkginfo
-  
-  `tar -xf #{@package_path} .PKGINFO`
+    Dir.mkdir(@sandbox) 
+
+    Open3.popen3("tar -C #{@sandbox} -xf #{@package_path} .PKGINFO") do |stdin, stdout, stderr|
+      error = stderr.gets
+      if not error.nil?
+
+        if error =~ /tar: (.*): Cannot open: No such file or directory/
+          puts "File does not exist"
+        elsif error =~ /tar: (.*): Not found in archive/
+          puts "Package does not have a .PKGINFO file!"
+        else
+          puts error
+        end
+        
+      else
+        puts "This is where the rules for .PKGINFO is"
+      end
+    end
 
   end
 
@@ -97,4 +119,5 @@ r_namcap = Ruffle.new(ARGV[0])
 
 #r_namcap.open_package
 #r_namcap.check_p_info
-r_namcap.view_files
+#r_namcap.view_files
+r_namcap.extract_pkginfo
