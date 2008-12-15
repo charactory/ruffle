@@ -1,46 +1,53 @@
 #!/usr/bin/ruby -w
+# 
+# ruffle - a rubyfied Pacman package analyzer
+# Copyright (C) 2008 Colin Gan <laxatives@gmail.com>
+# 
+#   This program is free software; you can redistribute it and/or modify
+#   it under the terms of the GNU General Public License as published by
+#   the Free Software Foundation; either version 2 of the License, or
+#   (at your option) any later version.
 #
-
+#   This program is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#   GNU General Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License
+#   along with this program; if not, write to the Free Software
+#   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#
+#
 #require 'zlib'
 require 'rubygems'
-#require 'facets/minitar'
 require 'fileutils'
-#include Archive::Tar
 #
 #this is an ugly way of getting the rule modules easily...
-Dir.glob(File.dirname(__FILE__) + '/ruffle_rules/*.rb').each {|rule| require rule} 
+#Dir.glob(File.dirname(__FILE__) + '/ruffle_rules/*.rb').each {|rule| require rule} 
+Dir.glob('/home/colin/projects/ruffle/ruffle_rules/*.rb').each {|rule| require rule} 
 #require 'ruffle_rules/permissions'
 
 class Ruffle
-  def initialize
-    @sandbox = '/home/colin/sandbox_namcap/'
-    #@package_path = '/home/colin/c.img'
+  def initialize(package_name)
+    #@sandbox = '/home/colin/sandbox_namcap/'
+    @sandbox = Dir::tmpdir + '/ruffle_' + Process.pid
+    @package_path = package_name
     #@package_path = '/home/colin/builds/PACKAGE_CACHE/libxft-2.1.13-2-i686.pkg.tar.gz'
     #@package_path = '/home/colin/builds/PACKAGE_CACHE/pcmanfm-0.5-3-i686.pkg.tar.gz'
-    @package_path = '/home/colin/builds/PACKAGE_CACHE/shoes-2-1-i686.pkg.tar.gz'
+    #@package_path = '/home/colin/builds/PACKAGE_CACHE/shoes-2-1-i686.pkg.tar.gz'
     #@package_path = '/home/colin/builds/PACKAGE_CACHE/xorg-server-1.5.3-4-i686.pkg.tar.gz'
     #@package_path = '/home/colin/builds/PACKAGE_CACHE/xulrunner-1.9.0.4-3-i686.pkg.tar.gz'
-    #@package_path = '/home/colin/c.iasdkaj '
     @files = []
   end
 
   def open_package
     if not File.exist?(@sandbox)
-      begin
       Dir.mkdir(@sandbox) 
-      tgz = Zlib::GzipReader.new(File.open(@package_path, 'rb'))
-      Minitar.unpack(tgz, @sandbox)
-
-      rescue Errno::ENOENT
-        puts "File does not exist!"
-      rescue Zlib::GzipFile::Error
-        puts "This is not a package file!"  
-      end
     end
   end
 
   def view_files
-    # files[number][n], where n:
+    # files[filenumber][n], where n:
     # 0 --> readwriteexec string
     # 1 --> ownership
     # 2 --> size
@@ -77,10 +84,16 @@ class Ruffle
     #remove for now
     #FileUtils.rm_r(@sandbox, :secure => true)
   end
+  
+  def extract_pkginfo
+  
+  `tar -xf #{@package_path} .PKGINFO`
+
+  end
 
 end
 
-r_namcap = Ruffle.new
+r_namcap = Ruffle.new(ARGV[0])
 
 #r_namcap.open_package
 #r_namcap.check_p_info
