@@ -17,6 +17,7 @@
 #   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 #
+require 'find'
 
 module Depends
   
@@ -24,7 +25,13 @@ module Depends
     Depends.fill_libcache
     Depends.get_files(file_list)
     Depends.extract(sandbox,package_path)
-    Dir.recurse(sandbox) {|x| Depends.scan_libs(x)}
+
+    Find.find(sandbox) do |path|
+      if File.file?(path)
+        Depends.scan_libs(path)
+      end
+    end
+
     #Depends.scan_libs(sandbox)
   end
 
@@ -113,7 +120,7 @@ module Depends
 
     raw_output.split("\n").each do |line|
       ld_array = line.scan(/\s*(.*) \((.*)\) => (.*)/)
-      if not ld_array.nil?
+      if not ld_array[2].nil?
         if ld_array[2].start_with?('libc6,x86-64')
           @libcache['x86-64'][ld_array[1]] = ld_array[3]
         else
@@ -133,7 +140,7 @@ module Depends
         File.open("#{pacmandb}/#{folder}/files") do |file|
           file.each_line do |line|
             #do stuff
-            matches = folder.scan(/(.*)-([^-]*)-([^-]*))/)
+            matches = folder.scan(/(.*)-([^-]*)-([^-]*)/)
           end
 
         end
