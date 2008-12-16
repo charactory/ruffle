@@ -18,6 +18,7 @@
 #
 #
 require 'find'
+require 'pathname'
 
 module Depends
   
@@ -26,15 +27,9 @@ module Depends
     Depends.fill_libcache
     Depends.get_files(file_list)
     Depends.extract(sandbox,package_path)
-
-    #Find.find(sandbox) do |path|
-    #  if File.file?(path) and not File.basename(path) == ".PKGINFO"
-    #    Depends.scan_libs(path)
-    #    puts path
-    #  end
-    #end
-
     Depends.scan_libs(sandbox)
+    Depends.find_depends
+
   end
 
   private
@@ -122,9 +117,10 @@ module Depends
               end
             end
           end
-        #libs << line.scan(/Shared library: \[(.*)\]/)
         end
+
       else
+
         #this is where we test for scripts
         #puts "Not a shared library"
         File.open(File.join(sandbox,file)) do |file|
@@ -144,12 +140,9 @@ module Depends
       end
     end
 
-      #print out what libraries were obtained
-
-      # @depends_files now a hash 
-      #
+    #print out what libraries were obtained
     @depends_files.each_pair do |f,libs|
-      puts "#{f}: #{libs}"
+      puts "#{f}: #{libs.join(" ")}"
       #libs.each {|x| puts "#{libs}: #{x}" if not x.nil?}
     end
 
@@ -187,18 +180,38 @@ module Depends
 
 
   def Depends.find_depends
+    other_depends_files = {}
     pacmandb = '/var/lib/pacman/local'
     pacman_packages = Dir.glob("#{pacmandb}/*")
     pacman_packages.each do |folder|
-      if File.exist?("#{pacmandb}/#{folder}/files")
-        File.open("#{pacmandb}/#{folder}/files") do |file|
+      dependency_name = folder.scan(/(.*)-([^-]*)-([^-]*)/)[0]
+      files_path = File.expand_path(File.join(folder, "files"))
+      puts "ahah" if not File.exist?(files_path)
+      if File.exist?(files_path)
+        File.open(files_path) do |file|
+          puts "opened file"
           file.each_line do |line|
-            #do stuff
-            matches = folder.scan(/(.*)-([^-]*)-([^-]*)/)
+            @depends_files.each_value do |libarray|
+              libarray.each do |lib|
+                #lib_realpath = Pathname.new(lib).realpath 
+                if line == lib or line.start_with?(lib)  #did not match end bit. Will do later.
+                  if not other_depends_files.key?(dependency_name)
+                    other_depends_files[dependency_name] = []
+                  end
+                  puts "Adding to dict"
+                  other_depends_files[dependency_name] << line
+                end
+              end
+            end
           end
 
         end
       end
+    end
+
+    puts other_depends_files.size
+    other_depends_files.each_pair do |dep, files|
+      puts "#{dep}: #{files.join(" ")}"
     end
   end
 
