@@ -22,17 +22,19 @@ require 'find'
 module Depends
   
   def Depends.analyze(file_list,package_path,sandbox)
+    @libcache = {'x86-64' => {}, 'i686' => {}}
     Depends.fill_libcache
     Depends.get_files(file_list)
     Depends.extract(sandbox,package_path)
 
-    Find.find(sandbox) do |path|
-      if File.file?(path)
-        Depends.scan_libs(path)
-      end
-    end
+    #Find.find(sandbox) do |path|
+    #  if File.file?(path) and not File.basename(path) == ".PKGINFO"
+    #    Depends.scan_libs(path)
+    #    puts path
+    #  end
+    #end
 
-    #Depends.scan_libs(sandbox)
+    Depends.scan_libs(sandbox)
   end
 
   private
@@ -47,7 +49,7 @@ module Depends
         end
       end
     end
-    @depends_files.each {|x| puts x}
+    #@depends_files.each {|x| puts x}
     puts "Hash length: #{@depends_files.keys.length}"
   end
 
@@ -72,59 +74,94 @@ module Depends
   end
 
   def Depends.scan_libs(sandbox)
-    libcache = {"i686" => [], "x86-64" => []}
-
+    puts "Calling scan libs"
     @depends_files.each_pair do |file, libs|
-      raw_output = ""
+      @raw_output = ""
+      #puts libs
+      #puts file
 
-      Open3.popen3("readelf -d #{file}") do |stdin, stdout, stderr|
-        raw_output = stdout.read
-        raw_error = stderr.read if not stderr.nil?
+      Open3.popen3("readelf -d #{File.join(sandbox,file)}") do |stdin, stdout, stderr|
+        @raw_output = stdout.read
+        @raw_error = stderr.read if not stderr.nil?
       end
       
-      if not raw_output =~ (/^readelf(.*)/) or not raw_output.nil?
-        raw_output.split("\n").each do |line|
+      puts @raw_error
+      @raw_output.each {|x| puts x}
+      puts "readelf -d #{File.join(sandbox,file)}"
+      
+      if not @raw_output.start_with?("readelf") or not @raw_output.nil?
+        puts "succeeded readelf"
+        @raw_output.split("\n").each do |line|
+        puts line
         bitstring = line.split(" ")[0]
-          if not bitstring.nil?
-            libs << (bitstring.length > 10 ? "x86-64" : "i686")
+        if line =~ /Shared library: \[(.*)\]/
+          if not bitstring.nil? and bitstring.length > 7 
+            #libs << (bitstring.length > 10 ? "x86-64" : "i686")
+            if bitstring.length > 10
+              libs << @libcache['x86-64'][line.scan(/Shared library: \[(.*)\]/)]
+              puts bitstring.length
+              puts @libcache['x86-64'][line.scan(/Shared library: \[(.*)\]/)].class
+            else
+              puts line.scan(/Shared library: \[(.*)\]/).class
+              #puts line.scan(/Shared library: \[(.*)\]/)[0]
+              puts line
+              puts file
+              puts @libcache['i686'][line.scan(/Shared library: \[(.*)\]/)[0]]
+              if not @libcache['i686'][line.scan(/Shared library: \[(.*)\]/)].nil?
+                libs << @libcache['i686'][line.scan(/Shared library: \[(.*)\]/)[0]]
+                #puts bitstring.length
+                #puts @libcache['i686'][line.scan(/Shared library: \[(.*)\]/)]
+                #regexp is correct
+                #puts line.scan(/Shared library: \[(.*)\]/)
+              end
+            end
           end
-        libs << line.scan(/Shared library: \[(.*)\]/)
         end
+        #libs << line.scan(/Shared library: \[(.*)\]/)
       end
+    end
 
       #TODO review this part. The hash is getting messy with differentiating the architectures.
 
       #print out what libraries were obtained
-      @depends_files.each_value do |libs|
-        libs.each {|x| puts x}
-      end
-
 
 
       # @depends_files now a hash 
       #
 
     end
+
+    @depends_files.each_pair do |f,libs|
+      #puts "#{f}: #{libs.size}"
+      libs.each {|x| puts "#{libs}: #{x}" if not x.nil?}
+    end
+
+    #@libcache['i686'].each_pair do |x,y|
+    #  puts "key:#{x}"
+    #  puts "value:#{y}"
+    #end
+
   end
 
 
   def Depends.fill_libcache
     #ldconfig allows us to find the paths to libraries
 
-    @libcache = {'x86-64' => {}, 'i686' => {}} if not @libcache
     raw_output = ""
     Open3.popen3("ldconfig -p") do |stdin, stdout, stderr|
       raw_output = stdout.read
       raw_error = stderr.read if not stderr.nil?
     end
 
+    #hours of debugging went into this
     raw_output.split("\n").each do |line|
       ld_array = line.scan(/\s*(.*) \((.*)\) => (.*)/)
-      if not ld_array[2].nil?
-        if ld_array[2].start_with?('libc6,x86-64')
-          @libcache['x86-64'][ld_array[1]] = ld_array[3]
+      if not ld_array[0].nil?
+        if ld_array[0][1].start_with?('libc6,x86-64')
+          @libcache['x86-64'][ld_array[0][1]] = ld_array[0][3]
         else
-          @libcache['i686'][ld_array[1]] = ld_array[3]
+          @libcache['i686'][ld_array[0][0]] = ld_array[0][2]
+          #puts @libcache['i686'][ld_array[0][0]]
         end
       end
     end
@@ -147,8 +184,6 @@ module Depends
       end
     end
   end
-            
-        
 
 
 
