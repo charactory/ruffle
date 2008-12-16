@@ -33,7 +33,7 @@ class Ruffle
 
   def initialize(package_name)
     @sandbox = "#{Dir.tmpdir}/ruffle_#{Process.pid}"
-    @package_path = package_name
+   @package_path = package_name
     #@package_path = '/home/colin/builds/PACKAGE_CACHE/libxft-2.1.13-2-i686.pkg.tar.gz'
     #@package_path = '/home/colin/builds/PACKAGE_CACHE/pcmanfm-0.5-3-i686.pkg.tar.gz'
     #@package_path = '/home/colin/builds/PACKAGE_CACHE/shoes-2-1-i686.pkg.tar.gz'
@@ -109,6 +109,7 @@ class Ruffle
       end
     end
 
+    #apply rules
     [Permissions, Depends].each {|rule| rule.analyze(@files, @package_path,@sandbox)} 
   end
 

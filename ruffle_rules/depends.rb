@@ -21,9 +21,11 @@
 module Depends
   
   def Depends.analyze(file_list,package_path,sandbox)
+    Depends.fill_libcache
     Depends.get_files(file_list)
     Depends.extract(sandbox,package_path)
-    Depends.scan_libs(sandbox)
+    Dir.recurse(sandbox) {|x| Depends.scan_libs(x)}
+    #Depends.scan_libs(sandbox)
   end
 
   private
@@ -74,14 +76,16 @@ module Depends
       end
       
       if not raw_output =~ (/^readelf(.*)/) or not raw_output.nil?
-      raw_output.split("\n").each do |line|
+        raw_output.split("\n").each do |line|
         bitstring = line.split(" ")[0]
-        if not bitstring.nil?
-          libs << (bitstring.length > 10 ? "x86-64" : "i686")
-        end
-         
+          if not bitstring.nil?
+            libs << (bitstring.length > 10 ? "x86-64" : "i686")
+          end
         libs << line.scan(/Shared library: \[(.*)\]/)
+        end
       end
+
+      #TODO review this part. The hash is getting messy with differentiating the architectures.
 
       #print out what libraries were obtained
       @depends_files.each_value do |libs|
@@ -94,11 +98,12 @@ module Depends
       #
 
     end
-    end
   end
 
 
   def Depends.fill_libcache
+    #ldconfig allows us to find the paths to libraries
+
     @libcache = {'x86-64' => {}, 'i686' => {}} if not @libcache
     raw_output = ""
     Open3.popen3("ldconfig -p") do |stdin, stdout, stderr|
@@ -118,6 +123,25 @@ module Depends
     end
 
   end
+
+
+  def Depends.find_depends
+    pacmandb = '/var/lib/pacman/local'
+    pacman_packages = Dir.glob("#{pacmandb}/*")
+    pacman_packages.each do |folder|
+      if File.exist?("#{pacmandb}/#{folder}/files")
+        File.open("#{pacmandb}/#{folder}/files") do |file|
+          file.each_line do |line|
+            #do stuff
+            matches = folder.scan(/(.*)-([^-]*)-([^-]*))/)
+          end
+
+        end
+      end
+    end
+  end
+            
+        
 
 
 
