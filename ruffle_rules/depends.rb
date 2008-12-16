@@ -45,7 +45,7 @@ module Depends
       if file[0].start_with?("-") # is this a file?
         if file[0][3..3] == "x" or file[5] =~ /(\.so?\.?)+/ # is this an executable/shared library?
           #I am now putting file[5] in a hash as a key with an array as a value
-          @depends_files[file[5]] = {}
+          @depends_files[file[5]] = []
         end
       end
     end
@@ -103,19 +103,22 @@ module Depends
                 #puts bitstring.length
                 puts @libcache['x86-64'][line.scan(/Shared library: \[(.*)\]/)].class
               else
-                #puts line.scan(/Shared library: \[(.*)\]/).class
                 #puts line.scan(/Shared library: \[(.*)\]/)[0]
                 #puts line
                 #puts file
                 #puts @libcache['i686'][line.scan(/Shared library: \[(.*)\]/)[0]]
-                if not @libcache['i686'][line.scan(/Shared library: \[(.*)\]/)].nil?
+                #if not @libcache['i686'][line.scan(/Shared library: \[(.*)\]/)].nil?
                   #libs[line.scan(/Shared library: \[(.*)\]/)[0]] = File.expand_path
-                  libs << @libcache['i686'][line.scan(/Shared library: \[(.*)\]/)[0]]
+                  #puts line.scan(/Shared library: \[(.*)\]/)[0].to_s
+                  key = line.scan(/Shared library: \[(.*)\]/)[0].to_s
+                  #puts @libcache['i686'][line.scan(/Shared library: \[(.*)\]/)[0]]
+                  libs << @libcache['i686'][key]
+                  #puts "haha"
+                  #puts @libcache['i686'][line.scan(/Shared library: \[(.*)\]/)[0]]
                   #puts bitstring.length
                   #puts @libcache['i686'][line.scan(/Shared library: \[(.*)\]/)]
-                  #regexp is correct
                   #puts line.scan(/Shared library: \[(.*)\]/)
-                end
+                #end
               end
             end
           end
@@ -123,12 +126,12 @@ module Depends
         end
       else
         #this is where we test for scripts
-        puts "Not a shared library"
+        #puts "Not a shared library"
         File.open(File.join(sandbox,file)) do |file|
           file.each do |line|
 
             if line =~ /#!.*ruby/
-              puts "Is a Ruby script"
+            #  puts "Is a Ruby script"
               break true
             elsif line =~ /#!.*python/
               puts "Is a Python script"
@@ -146,13 +149,13 @@ module Depends
       # @depends_files now a hash 
       #
     @depends_files.each_pair do |f,libs|
-      puts "#{f}: #{libs.size}"
-      libs.each {|x| puts "#{libs}: #{x}" if not x.nil?}
+      puts "#{f}: #{libs}"
+      #libs.each {|x| puts "#{libs}: #{x}" if not x.nil?}
     end
 
-    #@libcache['i686'].each_pair do |x,y|
-    #  puts "key:#{x}"
-    #  puts "value:#{y}"
+    #@libcache['i686'].each_key do |key|
+    #  puts "key:#{key}"
+    #  puts "value:#{@libcache['i686'][key]}"
     #end
 
   end
