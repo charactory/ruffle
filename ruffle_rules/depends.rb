@@ -45,7 +45,7 @@ module Depends
       if file[0].start_with?("-") # is this a file?
         if file[0][3..3] == "x" or file[5] =~ /(\.so?\.?)+/ # is this an executable/shared library?
           #I am now putting file[5] in a hash as a key with an array as a value
-          @depends_files[file[5]] = []
+          @depends_files[file[5]] = {}
         end
       end
     end
@@ -78,61 +78,75 @@ module Depends
     @depends_files.each_pair do |file, libs|
       @raw_output = ""
       #puts libs
-      #puts file
+      puts file
 
       Open3.popen3("readelf -d #{File.join(sandbox,file)}") do |stdin, stdout, stderr|
         @raw_output = stdout.read
         @raw_error = stderr.read if not stderr.nil?
       end
       
-      puts @raw_error
-      @raw_output.each {|x| puts x}
-      puts "readelf -d #{File.join(sandbox,file)}"
-      
-      if not @raw_output.start_with?("readelf") or not @raw_output.nil?
-        puts "succeeded readelf"
+      #puts @raw_error
+      #@raw_output.each {|x| puts x}
+      #puts "readelf -d #{File.join(sandbox,file)}"
+      #if not @raw_output.start_with?("readelf") or not @raw_output.nil?
+      #if not @raw_output.start_with?("readelf") and @raw_error.nil?
+      if not @raw_error.start_with?("readelf")
+        #puts "succeeded readelf"
         @raw_output.split("\n").each do |line|
-        puts line
-        bitstring = line.split(" ")[0]
-        if line =~ /Shared library: \[(.*)\]/
-          if not bitstring.nil? and bitstring.length > 7 
-            #libs << (bitstring.length > 10 ? "x86-64" : "i686")
-            if bitstring.length > 10
-              libs << @libcache['x86-64'][line.scan(/Shared library: \[(.*)\]/)]
-              puts bitstring.length
-              puts @libcache['x86-64'][line.scan(/Shared library: \[(.*)\]/)].class
-            else
-              puts line.scan(/Shared library: \[(.*)\]/).class
-              #puts line.scan(/Shared library: \[(.*)\]/)[0]
-              puts line
-              puts file
-              puts @libcache['i686'][line.scan(/Shared library: \[(.*)\]/)[0]]
-              if not @libcache['i686'][line.scan(/Shared library: \[(.*)\]/)].nil?
-                libs << @libcache['i686'][line.scan(/Shared library: \[(.*)\]/)[0]]
+        #puts line
+          bitstring = line.split(" ")[0]
+          if line =~ /Shared library: \[(.*)\]/
+            if not bitstring.nil? and bitstring.length > 7 
+              #libs << (bitstring.length > 10 ? "x86-64" : "i686")
+              if bitstring.length > 10
+                libs << @libcache['x86-64'][line.scan(/Shared library: \[(.*)\]/)]
                 #puts bitstring.length
-                #puts @libcache['i686'][line.scan(/Shared library: \[(.*)\]/)]
-                #regexp is correct
-                #puts line.scan(/Shared library: \[(.*)\]/)
+                puts @libcache['x86-64'][line.scan(/Shared library: \[(.*)\]/)].class
+              else
+                #puts line.scan(/Shared library: \[(.*)\]/).class
+                #puts line.scan(/Shared library: \[(.*)\]/)[0]
+                #puts line
+                #puts file
+                #puts @libcache['i686'][line.scan(/Shared library: \[(.*)\]/)[0]]
+                if not @libcache['i686'][line.scan(/Shared library: \[(.*)\]/)].nil?
+                  #libs[line.scan(/Shared library: \[(.*)\]/)[0]] = File.expand_path
+                  libs << @libcache['i686'][line.scan(/Shared library: \[(.*)\]/)[0]]
+                  #puts bitstring.length
+                  #puts @libcache['i686'][line.scan(/Shared library: \[(.*)\]/)]
+                  #regexp is correct
+                  #puts line.scan(/Shared library: \[(.*)\]/)
+                end
               end
             end
           end
-        end
         #libs << line.scan(/Shared library: \[(.*)\]/)
+        end
+      else
+        #this is where we test for scripts
+        puts "Not a shared library"
+        File.open(File.join(sandbox,file)) do |file|
+          file.each do |line|
+
+            if line =~ /#!.*ruby/
+              puts "Is a Ruby script"
+              break true
+            elsif line =~ /#!.*python/
+              puts "Is a Python script"
+              break true
+            end
+
+          end
+
+        end
       end
     end
 
-      #TODO review this part. The hash is getting messy with differentiating the architectures.
-
       #print out what libraries were obtained
-
 
       # @depends_files now a hash 
       #
-
-    end
-
     @depends_files.each_pair do |f,libs|
-      #puts "#{f}: #{libs.size}"
+      puts "#{f}: #{libs.size}"
       libs.each {|x| puts "#{libs}: #{x}" if not x.nil?}
     end
 
