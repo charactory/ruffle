@@ -20,7 +20,7 @@
 
 module Permissions
 
-  def Permissions.analyze(files,package_path,sandbox)
+  def Permissions.analyze(files, package_path, sandbox, pkginfo)
     files.each do |file| 
       #puts file[5] if file[0].start_with?('dr') #view directories
       #puts file[5] #view directories

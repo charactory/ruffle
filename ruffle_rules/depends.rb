@@ -26,6 +26,10 @@ module Depends
   
   def Depends.analyze(file_list, package_path, sandbox, pkginfo)
     @libcache = {'x86-64' => {}, 'i686' => {}}
+    @depends_files = {}  #files that the package needs
+    @other_depends_files = {} #files that the package needs, arranged according to what packages owns them in pacman db
+    @pkginfo_depends = {} #files that the dependencies of the package needs
+
     Depends.fill_libcache
     Depends.get_files(file_list)
     Depends.extract(sandbox,package_path)
@@ -38,7 +42,6 @@ module Depends
   private
 
   def Depends.get_files(file_list)
-    @depends_files = {}
     file_list.each do |file|
       if file[0].start_with?("-") # is this a file?
         if file[0][3..3] == "x" or file[5] =~ /(\.so?\.?)+/ # is this an executable/shared library?
@@ -170,26 +173,7 @@ module Depends
 
   end
 
-  def Depends.open_filesdb
-    pacmandb = '/var/lib/pacman/local'
-    pacman_packages = Dir.glob("#{pacmandb}/*")
-    pacman_packages.each do |folder|
-      #if File.basename(folder).start_with?("glibc")
-      files_path = File.expand_path(File.join(folder, "files"))
-      puts "ahah" if not File.exist?(files_path)
-      if File.exist?(files_path)
-        files_contents = []
-
-        File.open(files_path) do |file|
-          #puts "opened file"
-          file.each_line {|line| files_contents << line.chomp!}
-        end
-      end
-    end
-  end
-
   def Depends.find_depends   #this is inhumanely slow!
-    @other_depends_files = {}
     pacmandb = '/var/lib/pacman/local'
     pacman_packages = Dir.glob("#{pacmandb}/*")
     pacman_packages.each do |folder|
@@ -212,7 +196,7 @@ module Depends
         #files_contents.each {|line| pp line}
         @depends_files.each_pair do |actualdep, libarray|
         #  libarray.each {|line| sleep 0.4; pp "libarray: #{line}"}
-
+          # a very magical line
           depends_array = files_contents & libarray
           #puts "fc: #{files_contents.join(" ")}"
           #puts "lb #{libarray.join(" ")}"
@@ -239,7 +223,6 @@ module Depends
 
   def Depends.find_pkginfo_depends(pkginfo)
 
-    @pkginfo_depends = {}
     files_contents = {}
     pacmandb = '/var/lib/pacman/local'
     pacman_packages = Dir.glob("#{pacmandb}/*")
@@ -287,5 +270,31 @@ module Depends
 
   def Depends.getcovered
   end
+ 
+  def Depends.open_filesdb
+    pacmandb = '/var/lib/pacman/local'
+    pacman_packages = Dir.glob("#{pacmandb}/*")
+    pacman_packages.each do |folder|
+      #if File.basename(folder).start_with?("glibc")
+      files_path = File.expand_path(File.join(folder, "files"))
+      puts "ahah" if not File.exist?(files_path)
+      if File.exist?(files_path)
+        files_contents = []
+
+        File.open(files_path) do |file|
+          #puts "opened file"
+          file.each_line {|line| files_contents << line.chomp!}
+        end
+      end
+    end
+  end
+
+  def Depends.depends_loader
+    @other_depends_files.each do |dep, files|
+
+    end
+
+  end
+
 
 end
