@@ -19,6 +19,8 @@
 #
 require 'find'
 require 'pathname'
+require 'time'
+require 'pp'
 
 module Depends
   
@@ -143,7 +145,7 @@ module Depends
 
     #print out what libraries were obtained
     @depends_files.each_pair do |f,libs|
-      puts "#{f}: #{libs.join(" ")}"
+      pp "#{f}: #{libs.join(" ")}"
       #libs.each {|x| puts "#{libs}: #{x}" if not x.nil?}
     end
 
@@ -185,6 +187,7 @@ module Depends
     pacmandb = '/var/lib/pacman/local'
     pacman_packages = Dir.glob("#{pacmandb}/*")
     pacman_packages.each do |folder|
+      #if File.basename(folder).start_with?("glibc")
       files_path = File.expand_path(File.join(folder, "files"))
       puts "ahah" if not File.exist?(files_path)
       if File.exist?(files_path)
@@ -192,33 +195,51 @@ module Depends
 
         File.open(files_path) do |file|
           #puts "opened file"
-          file.each_line {|line| files_contents << line}
+          file.each_line {|line| files_contents << line.chomp!}
         end
 
-            @depends_files.each_value do |libarray|
-              libarray.each do |lib|
+        files_contents.map! {|line| "/" + line}
+
+        #files_contents.each {|line| pp "fc #{line}"}
+        #files_contents.each {|line| line.split(" ").each {|x| sleep 0.1;pp x}}
+        #files_contents.each {|line| pp line}
+        @depends_files.each_value do |libarray|
+        #  libarray.each {|line| sleep 0.4; pp "libarray: #{line}"}
+          #libarray.each {|line| puts line.length}
+          #libarray.map! {|line| line if not line.nil?}
+
+          depends_array = files_contents & libarray
+          #puts "fc: #{files_contents.join(" ")}"
+          #puts "lb #{libarray.join(" ")}"
+          dependency_name = File.basename(folder).scan(/(.*)-([^-]*)-([^-]*)/)[0][0]
+          if not depends_array.empty? 
+          if not other_depends_files.key?(dependency_name)
+            other_depends_files[dependency_name] = []
+          end
+          #puts "Adding to dict: #{depends_array.join(" ")}"
+          other_depends_files[dependency_name] << depends_array
+          end
+
+            #libarray.each do |lib|
                 #puts lib
                 #lib_realpath = Pathname.new(lib)
-          files_contents.map do |line|
-                #puts "from target: #{lib}"
-                lined = "/" + line
-                #puts lined
-                #puts lib
+            #  files_contents.map do |line|
+            #    lined = "/" + line
                 #if lined == lib or lined.start_with?(lib) #did not match end bit. Will do later.
-                if lined == lib  #did not match end bit. Will do later.
-                  dependency_name = File.basename(folder).scan(/(.*)-([^-]*)-([^-]*)/)[0][0]
-                  if not other_depends_files.key?(dependency_name)
-                    #puts "making list"
-                    other_depends_files[dependency_name] = []
-                  end
-                  puts "Adding to dict: #{lined}"
-                  other_depends_files[dependency_name] << line
+            #    if lined == lib  #did not match end bit. Will do later.
+            #      dependency_name = File.basename(folder).scan(/(.*)-([^-]*)-([^-]*)/)[0][0]
+            #      if not other_depends_files.key?(dependency_name)
+            #        other_depends_files[dependency_name] = []
+            #      end
+            #      puts "Adding to dict: #{lined}"
+            #      other_depends_files[dependency_name] << line
                   #have to build another array and add lib in here to make a list of libraries from app with shared deps
-                elsif lined.start_with?(lib)
-                  puts "#{lined}: #{lib}"
-                end
-              end
-          end
+            #    elsif lined.start_with?(lib)
+            #      puts "#{lined}: #{lib}"
+            #    end
+            #end
+          #end
+        #end
 
         end
       end
@@ -226,7 +247,7 @@ module Depends
 
     puts other_depends_files.size
     other_depends_files.each_pair do |dep, files|
-      puts "#{dep}: #{files.join(" ")}"
+      pp "#{dep}: #{files.join(" ")}"
     end
   end
 
