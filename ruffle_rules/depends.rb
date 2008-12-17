@@ -170,6 +170,23 @@ module Depends
 
   end
 
+  def Depends.open_filesdb
+    pacmandb = '/var/lib/pacman/local'
+    pacman_packages = Dir.glob("#{pacmandb}/*")
+    pacman_packages.each do |folder|
+      #if File.basename(folder).start_with?("glibc")
+      files_path = File.expand_path(File.join(folder, "files"))
+      puts "ahah" if not File.exist?(files_path)
+      if File.exist?(files_path)
+        files_contents = []
+
+        File.open(files_path) do |file|
+          #puts "opened file"
+          file.each_line {|line| files_contents << line.chomp!}
+        end
+      end
+    end
+  end
 
   def Depends.find_depends   #this is inhumanely slow!
     @other_depends_files = {}
@@ -213,6 +230,7 @@ module Depends
       end
     end
 
+    #this block prints out 'installed package: shared library dependencies'
     puts @other_depends_files.size
     @other_depends_files.each_pair do |dep, files|
       pp "#{dep[1]} requires #{dep[0]}: #{files.join(" ")}"
@@ -230,15 +248,20 @@ module Depends
     pkginfo.each_pair do |key,value|
       if key == :depend
         #need to strip the <= >= signs
-        @pkginfo_depends[value] = []
+        #Note to self: no idea why it's [0][0] and not [0]
+        value.map! {|x| x.to_s.scan(/([^<>=]*)[><=]*(.*)/)[0][0]}
+        value.each {|x| @pkginfo_depends[x] = [] }
       end
     end
 
 
     pacman_packages.each do |folder|
       @pkginfo_depends.each_key do |dep|
-        puts dep
-        if folder.start_with?(dep)
+        #puts "#{File.basename(folder)}: #{dep}"
+        if File.basename(folder).start_with?(dep)
+        #if folder =~ (/#{dep}[><=]*(.*)/) #this regexp needs to be changed! ><= not used
+        #if folder =~ (/#{dep}[.\d-]+/) #this regexp needs to be changed! ><= not used
+          #puts folder
           files_path = File.expand_path(File.join(folder, "files"))
           if File.exist?(files_path)
 
@@ -246,39 +269,23 @@ module Depends
               #gets all files belonging to the dependency
               #file.each_line {|line| files_contents << line.chomp!}
               file.each_line {|line| @pkginfo_depends[dep] << "/" + line.chomp!}
-              puts @pkginfo_depends[dep].join(" ")
+              #puts @pkginfo_depends[dep].join(" ")
             end
-            
-        
-            #add a forward slash to each file in 'files'
-            #pkginfo_depends.map! {|line| "/" + line}
-            #don't interate over it if it's been found previously
-
-            #@depends_files.each_pair do |actualdep, libarray|
-            #depends_array = files_contents & libarray
-            #dependency_name = File.basename(folder).scan(/(.*)-([^-]*)-([^-]*)/)[0][0]
-            #if not depends_array.empty? 
-            #  if not @other_depends_files.key?([dependency_name, actualdep])
-            #    @other_depends_files[[dependency_name, actualdep]] = []
-            #  end
-              # dependency_name is the name of the folder/package which contains the shared dependency
-              # actualdep is the file belonging to the ruffled package which requires that shared library
-            #  @other_depends_files[[dependency_name, actualdep]] << depends_array
-            #end
           end
         end
        #something... 
       end
     end
-
+    
+    #this block prints out the files owned by the dependencies stated in .PKGINFO
     @pkginfo_depends.each_pair do |depname, deps|
-      puts "ahha"
       puts deps.length
       puts "#{depname}: #{deps.join(" ")}"
     end
     
   end
 
-end
+  def Depends.getcovered
+  end
 
-  # if sick of this, work on a trivial rule
+end
