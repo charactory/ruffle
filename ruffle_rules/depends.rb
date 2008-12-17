@@ -28,6 +28,7 @@ module Depends
     Depends.get_files(file_list)
     Depends.extract(sandbox,package_path)
     Depends.scan_libs(sandbox)
+    #@depends_files.each_value {|x| x.map {|y| puts y}}
     Depends.find_depends
 
   end
@@ -179,30 +180,44 @@ module Depends
   end
 
 
-  def Depends.find_depends
+  def Depends.find_depends   #this is inhumanely slow!
     other_depends_files = {}
     pacmandb = '/var/lib/pacman/local'
     pacman_packages = Dir.glob("#{pacmandb}/*")
     pacman_packages.each do |folder|
-      dependency_name = folder.scan(/(.*)-([^-]*)-([^-]*)/)[0]
       files_path = File.expand_path(File.join(folder, "files"))
       puts "ahah" if not File.exist?(files_path)
       if File.exist?(files_path)
+        files_contents = []
+
         File.open(files_path) do |file|
-          puts "opened file"
-          file.each_line do |line|
+          #puts "opened file"
+          file.each_line {|line| files_contents << line}
+        end
+
             @depends_files.each_value do |libarray|
               libarray.each do |lib|
-                #lib_realpath = Pathname.new(lib).realpath 
-                if line == lib or line.start_with?(lib)  #did not match end bit. Will do later.
+                #puts lib
+                #lib_realpath = Pathname.new(lib)
+          files_contents.map do |line|
+                #puts "from target: #{lib}"
+                lined = "/" + line
+                #puts lined
+                #puts lib
+                #if lined == lib or lined.start_with?(lib) #did not match end bit. Will do later.
+                if lined == lib  #did not match end bit. Will do later.
+                  dependency_name = File.basename(folder).scan(/(.*)-([^-]*)-([^-]*)/)[0][0]
                   if not other_depends_files.key?(dependency_name)
+                    #puts "making list"
                     other_depends_files[dependency_name] = []
                   end
-                  puts "Adding to dict"
+                  puts "Adding to dict: #{lined}"
                   other_depends_files[dependency_name] << line
+                  #have to build another array and add lib in here to make a list of libraries from app with shared deps
+                elsif lined.start_with?(lib)
+                  puts "#{lined}: #{lib}"
                 end
               end
-            end
           end
 
         end
