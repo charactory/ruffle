@@ -24,14 +24,14 @@ require 'pp'
 
 module Depends
   
-  def Depends.analyze(file_list,package_path,sandbox)
+  def Depends.analyze(file_list, package_path, sandbox, pkginfo)
     @libcache = {'x86-64' => {}, 'i686' => {}}
     Depends.fill_libcache
     Depends.get_files(file_list)
     Depends.extract(sandbox,package_path)
     Depends.scan_libs(sandbox)
-    #@depends_files.each_value {|x| x.map {|y| puts y}}
     Depends.find_depends
+    Depends.find_pkginfo_depends(pkginfo)
 
   end
 
@@ -84,36 +84,25 @@ module Depends
       end
       
       #puts @raw_error
-      #@raw_output.each {|x| puts x}
       #puts "readelf -d #{File.join(sandbox,file)}"
       #if not @raw_output.start_with?("readelf") or not @raw_output.nil?
       #if not @raw_output.start_with?("readelf") and @raw_error.nil?
       if not @raw_error.start_with?("readelf")
-        #puts "succeeded readelf"
         @raw_output.split("\n").each do |line|
-        #puts line
           bitstring = line.split(" ")[0]
           if line =~ /Shared library: \[(.*)\]/
             if not bitstring.nil? and bitstring.length > 7 
               #libs << (bitstring.length > 10 ? "x86-64" : "i686")
               if bitstring.length > 10
                 libs << @libcache['x86-64'][line.scan(/Shared library: \[(.*)\]/)]
-                #puts bitstring.length
                 puts @libcache['x86-64'][line.scan(/Shared library: \[(.*)\]/)].class
               else
-                #puts line.scan(/Shared library: \[(.*)\]/)[0]
-                #puts line
-                #puts file
                 #puts @libcache['i686'][line.scan(/Shared library: \[(.*)\]/)[0]]
                 #if not @libcache['i686'][line.scan(/Shared library: \[(.*)\]/)].nil?
-                  #libs[line.scan(/Shared library: \[(.*)\]/)[0]] = File.expand_path
-                  #puts line.scan(/Shared library: \[(.*)\]/)[0].to_s
                   key = line.scan(/Shared library: \[(.*)\]/)[0].to_s
                   #puts @libcache['i686'][line.scan(/Shared library: \[(.*)\]/)[0]]
                   libs << @libcache['i686'][key]
-                  #puts "haha"
                   #puts @libcache['i686'][line.scan(/Shared library: \[(.*)\]/)[0]]
-                  #puts bitstring.length
                   #puts @libcache['i686'][line.scan(/Shared library: \[(.*)\]/)]
                   #puts line.scan(/Shared library: \[(.*)\]/)
                 #end
@@ -183,7 +172,7 @@ module Depends
 
 
   def Depends.find_depends   #this is inhumanely slow!
-    other_depends_files = {}
+    @other_depends_files = {}
     pacmandb = '/var/lib/pacman/local'
     pacman_packages = Dir.glob("#{pacmandb}/*")
     pacman_packages.each do |folder|
@@ -197,7 +186,8 @@ module Depends
           #puts "opened file"
           file.each_line {|line| files_contents << line.chomp!}
         end
-
+        
+        #add a forward slash to each file in 'files'
         files_contents.map! {|line| "/" + line}
 
         #files_contents.each {|line| pp "fc #{line}"}
@@ -205,57 +195,90 @@ module Depends
         #files_contents.each {|line| pp line}
         @depends_files.each_pair do |actualdep, libarray|
         #  libarray.each {|line| sleep 0.4; pp "libarray: #{line}"}
-          #libarray.each {|line| puts line.length}
-          #libarray.map! {|line| line if not line.nil?}
 
           depends_array = files_contents & libarray
           #puts "fc: #{files_contents.join(" ")}"
           #puts "lb #{libarray.join(" ")}"
           dependency_name = File.basename(folder).scan(/(.*)-([^-]*)-([^-]*)/)[0][0]
           if not depends_array.empty? 
-          if not other_depends_files.key?([dependency_name, actualdep])
-            other_depends_files[[dependency_name, actualdep]] = []
+            if not @other_depends_files.key?([dependency_name, actualdep])
+              @other_depends_files[[dependency_name, actualdep]] = []
+            end
+            #puts "Adding to dict: #{depends_array.join(" ")}"
+            # dependency_name is the name of the folder/package which contains the shared dependency
+            # actualdep is the file belonging to the ruffled package which requires that shared library
+            @other_depends_files[[dependency_name, actualdep]] << depends_array
           end
-          #puts "Adding to dict: #{depends_array.join(" ")}"
-          # dependency_name is the name of the folder/package which contains the shared dependency
-          # actualdep is the file belonging to the ruffled package which requires that shared library
-          other_depends_files[[dependency_name, actualdep]] << depends_array
-          end
-
-            #libarray.each do |lib|
-                #puts lib
-                #lib_realpath = Pathname.new(lib)
-            #  files_contents.map do |line|
-            #    lined = "/" + line
-                #if lined == lib or lined.start_with?(lib) #did not match end bit. Will do later.
-            #    if lined == lib  #did not match end bit. Will do later.
-            #      dependency_name = File.basename(folder).scan(/(.*)-([^-]*)-([^-]*)/)[0][0]
-            #      if not other_depends_files.key?(dependency_name)
-            #        other_depends_files[dependency_name] = []
-            #      end
-            #      puts "Adding to dict: #{lined}"
-            #      other_depends_files[dependency_name] << line
-                  #have to build another array and add lib in here to make a list of libraries from app with shared deps
-            #    elsif lined.start_with?(lib)
-            #      puts "#{lined}: #{lib}"
-            #    end
-            #end
-          #end
-        #end
-
         end
       end
     end
 
-    puts other_depends_files.size
-    other_depends_files.each_pair do |dep, files|
-      pp "#{dep.join(" ")}: #{files.join(" ")}"
+    puts @other_depends_files.size
+    @other_depends_files.each_pair do |dep, files|
+      pp "#{dep[1]} requires #{dep[0]}: #{files.join(" ")}"
     end
   end
 
+  def Depends.find_pkginfo_depends(pkginfo)
+
+    @pkginfo_depends = {}
+    files_contents = {}
+    pacmandb = '/var/lib/pacman/local'
+    pacman_packages = Dir.glob("#{pacmandb}/*")
+    
+    #fills listed_depends_array with names of dependencies from .PKGINFO
+    pkginfo.each_pair do |key,value|
+      if key == :depend
+        #need to strip the <= >= signs
+        @pkginfo_depends[value] = []
+      end
+    end
 
 
-  #TODO: read the part about script.setdefault in depends.py
-  # if sick of this, work on a trivial rule
+    pacman_packages.each do |folder|
+      @pkginfo_depends.each_key do |dep|
+        puts dep
+        if folder.start_with?(dep)
+          files_path = File.expand_path(File.join(folder, "files"))
+          if File.exist?(files_path)
+
+            File.open(files_path) do |file|
+              #gets all files belonging to the dependency
+              #file.each_line {|line| files_contents << line.chomp!}
+              file.each_line {|line| @pkginfo_depends[dep] << "/" + line.chomp!}
+              puts @pkginfo_depends[dep].join(" ")
+            end
+            
+        
+            #add a forward slash to each file in 'files'
+            #pkginfo_depends.map! {|line| "/" + line}
+            #don't interate over it if it's been found previously
+
+            #@depends_files.each_pair do |actualdep, libarray|
+            #depends_array = files_contents & libarray
+            #dependency_name = File.basename(folder).scan(/(.*)-([^-]*)-([^-]*)/)[0][0]
+            #if not depends_array.empty? 
+            #  if not @other_depends_files.key?([dependency_name, actualdep])
+            #    @other_depends_files[[dependency_name, actualdep]] = []
+            #  end
+              # dependency_name is the name of the folder/package which contains the shared dependency
+              # actualdep is the file belonging to the ruffled package which requires that shared library
+            #  @other_depends_files[[dependency_name, actualdep]] << depends_array
+            #end
+          end
+        end
+       #something... 
+      end
+    end
+
+    @pkginfo_depends.each_pair do |depname, deps|
+      puts "ahha"
+      puts deps.length
+      puts "#{depname}: #{deps.join(" ")}"
+    end
+    
+  end
 
 end
+
+  # if sick of this, work on a trivial rule
