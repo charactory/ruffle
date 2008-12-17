@@ -203,7 +203,7 @@ module Depends
         #files_contents.each {|line| pp "fc #{line}"}
         #files_contents.each {|line| line.split(" ").each {|x| sleep 0.1;pp x}}
         #files_contents.each {|line| pp line}
-        @depends_files.each_value do |libarray|
+        @depends_files.each_pair do |actualdep, libarray|
         #  libarray.each {|line| sleep 0.4; pp "libarray: #{line}"}
           #libarray.each {|line| puts line.length}
           #libarray.map! {|line| line if not line.nil?}
@@ -213,11 +213,13 @@ module Depends
           #puts "lb #{libarray.join(" ")}"
           dependency_name = File.basename(folder).scan(/(.*)-([^-]*)-([^-]*)/)[0][0]
           if not depends_array.empty? 
-          if not other_depends_files.key?(dependency_name)
-            other_depends_files[dependency_name] = []
+          if not other_depends_files.key?([dependency_name, actualdep])
+            other_depends_files[[dependency_name, actualdep]] = []
           end
           #puts "Adding to dict: #{depends_array.join(" ")}"
-          other_depends_files[dependency_name] << depends_array
+          # dependency_name is the name of the folder/package which contains the shared dependency
+          # actualdep is the file belonging to the ruffled package which requires that shared library
+          other_depends_files[[dependency_name, actualdep]] << depends_array
           end
 
             #libarray.each do |lib|
@@ -247,7 +249,7 @@ module Depends
 
     puts other_depends_files.size
     other_depends_files.each_pair do |dep, files|
-      pp "#{dep}: #{files.join(" ")}"
+      pp "#{dep.join(" ")}: #{files.join(" ")}"
     end
   end
 
