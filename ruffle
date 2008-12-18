@@ -34,12 +34,8 @@ class Ruffle
   def initialize(package_name)
     @sandbox = "#{Dir.tmpdir}/ruffle_#{Process.pid}"
     @package_path = package_name
-    #@package_path = '/home/colin/builds/PACKAGE_CACHE/libxft-2.1.13-2-i686.pkg.tar.gz'
-    #@package_path = '/home/colin/builds/PACKAGE_CACHE/pcmanfm-0.5-3-i686.pkg.tar.gz'
-    #@package_path = '/home/colin/builds/PACKAGE_CACHE/shoes-2-1-i686.pkg.tar.gz'
-    #@package_path = '/home/colin/builds/PACKAGE_CACHE/xorg-server-1.5.3-4-i686.pkg.tar.gz'
-    #@package_path = '/home/colin/builds/PACKAGE_CACHE/xulrunner-1.9.0.4-3-i686.pkg.tar.gz'
     @files = []
+    @pkginfo = {}
     
     # The array of different return strings
     @ret = [[], [], [],]
@@ -67,25 +63,33 @@ class Ruffle
   end
 
   def check_p_info
-    package_info = "#{@sandbox}/.PKGINFO" 
-    pkginfo_vars = [:pkgname, :pkgver, :pkgdesc, :url, :builddate, :packager, :size, :arch, :license, :depend, :optdepend] 
-    pkginfo_hash = {}
-    
-    if File.exist?(package_info)
+    vars = [
+            :pkgname, :pkgver, :pkgdesc, :url, :builddate, :packager, :size, :arch, :license, :depend, :optdepend, :md5sum, :sha1sum, :install, :filename, :replaces, :provides
+            ] 
+
+    pinfo_path = "#{@sandbox}/.PKGINFO" 
+
+    if File.exist?(pinfo_path)
       puts "Package info exists!"
 
       begin
-        File.open(package_info).each do |x|
-          pkginfo_vars.each do |var|
-            x.scan(/#{var} = (.*)/) {|val| pkginfo_hash[var] = val} 
+
+        File.open(pinfo_path).each do |x|
+          vars.each do |var|
+            x.scan(/#{var} = (.*)/) do |val| 
+              if @pkginfo.has_key?(var)
+                @pkginfo[var] << val
+              else
+                @pkginfo[var] = [val]   #IMPORTANT: all pkginfo values are ARRAYS!
+              end
+            end
           end
+
         end
-        pkginfo_hash.each_pair {|x,y| puts "#{x} = #{y}"}
+        @pkginfo.each_pair {|x,y| puts "#{x} = #{y}"}
       end
 
     end
-    #remove for now
-    #FileUtils.rm_r(@sandbox, :secure => true)
   end
   
   def extract_pkginfo
@@ -108,9 +112,12 @@ class Ruffle
         puts "This is where the rules for .PKGINFO is"
       end
     end
+  end
 
-    #apply rules
-    [Permissions, Depends].each {|rule| rule.analyze(@files, @package_path,@sandbox)} 
+  def apply_rules
+    [Permissions, Depends].each {|rule| rule.analyze(@files, @package_path,@sandbox, @pkginfo)} 
+    #remove for now
+    #FileUtils.rm_r(@sandbox, :secure => true)
   end
 
 end
@@ -118,6 +125,7 @@ end
 r_namcap = Ruffle.new(ARGV[0])
 
 #r_namcap.open_package
-#r_namcap.check_p_info
 #r_namcap.view_files
 r_namcap.extract_pkginfo
+r_namcap.check_p_info
+r_namcap.apply_rules

@@ -37,6 +37,13 @@ module Depends
     Depends.find_depends
     Depends.find_pkginfo_depends(pkginfo)
 
+    #@depends_files.each_key do |key|
+     
+    covered_depends = []
+    Depends.getcovered(@depends_files.keys , covered_depends)
+    Depends.getcovered(@pkginfo_depends.keys , covered_depends)
+    covered_depends.each {|x| puts "I: Dependency covered by dependencies from link dependence (#{x})"}
+
   end
 
   private
@@ -55,7 +62,6 @@ module Depends
   end
 
   def Depends.extract(sandbox,package_path)
-    #puts "tar -C #{sandbox} -xf #{package_path} #{@depends_files.keys.join(" ")}"
     Open3.popen3("tar -C #{sandbox} -xf #{package_path} #{@depends_files.keys.join(" ")}") do |stdin, stdout, stderr|
       error = stderr.gets
       if not error.nil?
@@ -87,7 +93,6 @@ module Depends
       end
       
       #puts @raw_error
-      #puts "readelf -d #{File.join(sandbox,file)}"
       #if not @raw_output.start_with?("readelf") or not @raw_output.nil?
       #if not @raw_output.start_with?("readelf") and @raw_error.nil?
       if not @raw_error.start_with?("readelf")
@@ -138,7 +143,6 @@ module Depends
     #print out what libraries were obtained
     @depends_files.each_pair do |f,libs|
       pp "#{f}: #{libs.join(" ")}"
-      #libs.each {|x| puts "#{libs}: #{x}" if not x.nil?}
     end
 
     #@libcache['i686'].each_key do |key|
@@ -177,29 +181,21 @@ module Depends
     pacmandb = '/var/lib/pacman/local'
     pacman_packages = Dir.glob("#{pacmandb}/*")
     pacman_packages.each do |folder|
-      #if File.basename(folder).start_with?("glibc")
       files_path = File.expand_path(File.join(folder, "files"))
-      puts "ahah" if not File.exist?(files_path)
+      #puts "ahah" if not File.exist?(files_path)
       if File.exist?(files_path)
         files_contents = []
 
         File.open(files_path) do |file|
-          #puts "opened file"
           file.each_line {|line| files_contents << line.chomp!}
         end
         
         #add a forward slash to each file in 'files'
         files_contents.map! {|line| "/" + line}
 
-        #files_contents.each {|line| pp "fc #{line}"}
-        #files_contents.each {|line| line.split(" ").each {|x| sleep 0.1;pp x}}
-        #files_contents.each {|line| pp line}
         @depends_files.each_pair do |actualdep, libarray|
-        #  libarray.each {|line| sleep 0.4; pp "libarray: #{line}"}
           # a very magical line
           depends_array = files_contents & libarray
-          #puts "fc: #{files_contents.join(" ")}"
-          #puts "lb #{libarray.join(" ")}"
           dependency_name = File.basename(folder).scan(/(.*)-([^-]*)-([^-]*)/)[0][0]
           if not depends_array.empty? 
             if not @other_depends_files.key?([dependency_name, actualdep])
@@ -227,21 +223,20 @@ module Depends
     pacmandb = '/var/lib/pacman/local'
     pacman_packages = Dir.glob("#{pacmandb}/*")
     
-    #fills listed_depends_array with names of dependencies from .PKGINFO
+    #fills @pkginfo_depends with names of dependencies from .PKGINFO
     pkginfo.each_pair do |key,value|
       if key == :depend
         #need to strip the <= >= signs
-        #Note to self: no idea why it's [0][0] and not [0]
-        value.map! {|x| x.to_s.scan(/([^<>=]*)[><=]*(.*)/)[0][0]}
+        value.map! {|x| x.to_s.scan(/([^<>=]*)[><=]*(.*)/)[0].to_s}
         value.each {|x| @pkginfo_depends[x] = [] }
       end
     end
 
-
     pacman_packages.each do |folder|
       @pkginfo_depends.each_key do |dep|
         #puts "#{File.basename(folder)}: #{dep}"
-        if File.basename(folder).start_with?(dep)
+        #if File.basename(folder).start_with?(dep)
+        if File.basename(folder).start_with?(dep) 
         #if folder =~ (/#{dep}[><=]*(.*)/) #this regexp needs to be changed! ><= not used
         #if folder =~ (/#{dep}[.\d-]+/) #this regexp needs to be changed! ><= not used
           #puts folder
@@ -250,9 +245,9 @@ module Depends
 
             File.open(files_path) do |file|
               #gets all files belonging to the dependency
-              #file.each_line {|line| files_contents << line.chomp!}
               file.each_line {|line| @pkginfo_depends[dep] << "/" + line.chomp!}
               #puts @pkginfo_depends[dep].join(" ")
+              #might want to delete %FILES% somewhere here
             end
           end
         end
@@ -263,13 +258,60 @@ module Depends
     #this block prints out the files owned by the dependencies stated in .PKGINFO
     @pkginfo_depends.each_pair do |depname, deps|
       puts deps.length
-      puts "#{depname}: #{deps.join(" ")}"
+      #puts "#{depname}: #{deps.join(" ")}"
     end
     
   end
 
-  def Depends.getcovered
+  
+  class Pacman
+    def Pacman.load_depends(depends, attribute)
+      attrs = []
+      File.open(depends).each do |line|
+        if line.start_with?('%')
+          attrs << [line.gsub!('%', '').strip!]
+        elsif not attrs.include?(line) and line.strip != ""
+          #a = line.scan(/([^<>=]*)[><=]*(.*)/)[0][0].chomp!
+          a = line.split('>')[0].split('<')[0].split('=')[0].to_s.chomp
+          (attrs.last << a) if not a.nil?
+        end
+      end
+      if not attrs.empty?
+      attrs.assoc(attribute).each {|x| yield x}
+      end
+    end
   end
+
+  def Depends.getcovered(deplist, covered_deps)
+    #accepts two arrays as arguments, one of deps to check and the other is an array to fill with covered dependencies found by this method
+    full_package_names = []
+    pacmandb = '/var/lib/pacman/local'
+
+    #for each dependency listed that isn't already covered...
+    deplist.each do |pkgname|
+      Dir.glob("#{pacmandb}/*").each do |folder|
+        #if File.basename(folder).start_with?(pkgname)  #problematic because 'sh' matches a lot of things
+        if File.basename(folder).scan(/(.*)-([^-]*)-([^-]*)/)[0][0] == pkgname
+          full_package_names << folder #contains full path
+        end
+      end
+
+      full_package_names.each do |folder|
+        Depends::Pacman.load_depends(File.join(folder, 'depends'), 'DEPENDS') do |dep|
+          if dep != 'DEPENDS' and not dep.nil?
+            if not covered_deps.include?(dep)
+              #puts "Currently examined dep: #{dep}"
+              #puts "Covered depedencies: #{(dep.to_a + covered_deps).join(" ")}"
+              covered_deps << dep 
+              getcovered([dep], covered_deps)
+            end
+          end
+        end
+      end
+    end
+  end
+
+  #do 
  
   def Depends.open_filesdb
     pacmandb = '/var/lib/pacman/local'
@@ -293,7 +335,6 @@ module Depends
     @other_depends_files.each do |dep, files|
 
     end
-
   end
 
 
