@@ -31,6 +31,7 @@ module Depends
     @pkginfo_depends = {} #files that the dependencies of the package needs
 
     @smart_depends = {}
+    @sandbox = sandbox
 
     Depends.fill_libcache
     Depends.get_files(file_list)
@@ -39,11 +40,14 @@ module Depends
     Depends.find_depends
     Depends.find_pkginfo_depends(pkginfo)
 
-    #@depends_files.each_key do |key|
-     
     covered_depends = []
-    Depends.getcovered(@depends_files.keys , covered_depends)
-    Depends.getcovered(@pkginfo_depends.keys , covered_depends)
+    #include covered deps and optdeps from pkginfo
+    #Depends.getcovered((pkginfo.select {|k,v| k == 'depend'}), covered_depends)
+    Depends.getcovered((pkginfo.select {|k,v| k == 'optdepend'}), covered_depends)
+
+    Depends.getcovered(@depends_files.keys, covered_depends)
+    Depends.getcovered(@pkginfo_depends.keys, covered_depends)
+    covered_depends.uniq!
     covered_depends.each {|x| puts "I: Dependency covered by dependencies from link dependence (#{x})"}
 
     #each_key {|x| odf << x[0]
@@ -319,7 +323,7 @@ module Depends
       package = Depends::Pacman.new(File.join(folder, 'depends'))
       package.load
       package.get_attr('depends') do |dep|
-        if not covered_deps.include?(dep)
+        if not covered_deps.include?(dep) #watch upcase
           #puts "Currently examined dep: #{dep}"
           #puts "Covered depedencies: #{(dep.to_a + covered_deps).join(" ")}"
           covered_deps << dep 
@@ -328,6 +332,26 @@ module Depends
       end
     end
 
+  end
+
+
+  def Depends.getprovides 
+    pkginfo_path = File.join(@sandbox,'.PKGINFO')
+    
+    File.open(pkginfo_path).each do |line|
+
+    full_package_names.each do |folder|
+      package = Depends::Pacman.new(File.join(folder, 'depends'))
+      package.load
+      package.get_attr('depends') do |dep|
+        if not covered_deps.include?(dep)
+          #puts "Currently examined dep: #{dep}"
+          #puts "Covered depedencies: #{(dep.to_a + covered_deps).join(" ")}"
+          covered_deps << dep 
+          getcovered([dep], covered_deps)
+        end
+      end
+    end
   end
 
   #do 
@@ -356,5 +380,5 @@ module Depends
   #  end
   #end
 
-
+  end
 end
