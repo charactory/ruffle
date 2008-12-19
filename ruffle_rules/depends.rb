@@ -58,8 +58,6 @@ module Depends
     pp @smart_depends
   end
 
-  private
-
   def Depends.get_files(file_list)
     file_list.each do |file|
       if file[0].start_with?("-") # is this a file?
@@ -276,21 +274,30 @@ module Depends
 
   
   class Pacman
-    def Pacman.load_depends(depends, attribute)
-      attrs = []
-      File.open(depends).each do |line|
+
+    def initialize(package)
+      @package = package
+      @attrs = []
+    end
+
+    def load
+      #attr_reader :depends, :optdepends, :provides
+      File.open(@package).each do |line|
         if line.start_with?('%')
-          attrs << [line.gsub!('%', '').strip!]
-        elsif not attrs.include?(line) and line.strip != ""
-          #a = line.scan(/([^<>=]*)[><=]*(.*)/)[0][0].chomp!
+          @attrs << [line.gsub!('%', '').strip!.downcase] #make an array
+        elsif not @attrs.include?(line) and line.strip != ""
           a = line.split('>')[0].split('<')[0].split('=')[0].to_s.chomp
-          (attrs.last << a) if not a.nil?
+          (@attrs.last << a) if not a.nil?
         end
       end
-      if not attrs.empty?
-      attrs.assoc(attribute).each {|x| yield x}
-      end
     end
+
+    def get_attr(attribute)
+      if not @attrs.empty?
+        @attrs.assoc(attribute).each {|x| yield x}
+      end     
+    end
+
   end
 
   def Depends.getcovered(deplist, covered_deps)
@@ -308,18 +315,19 @@ module Depends
       end
     end
 
-      full_package_names.each do |folder|
-        Depends::Pacman.load_depends(File.join(folder, 'depends'), 'DEPENDS') do |dep|
-          if dep != 'DEPENDS' and not dep.nil?
-            if not covered_deps.include?(dep)
-              #puts "Currently examined dep: #{dep}"
-              #puts "Covered depedencies: #{(dep.to_a + covered_deps).join(" ")}"
-              covered_deps << dep 
-              getcovered([dep], covered_deps)
-            end
-          end
+    full_package_names.each do |folder|
+      package = Depends::Pacman.new(File.join(folder, 'depends'))
+      package.load
+      package.get_attr('depends') do |dep|
+        if not covered_deps.include?(dep)
+          #puts "Currently examined dep: #{dep}"
+          #puts "Covered depedencies: #{(dep.to_a + covered_deps).join(" ")}"
+          covered_deps << dep 
+          getcovered([dep], covered_deps)
         end
+      end
     end
+
   end
 
   #do 
@@ -342,11 +350,11 @@ module Depends
     end
   end
 
-  def Depends.depends_loader
-    @other_depends_files.each do |dep, files|
+  #def Depends.depends_loader
+  #  @other_depends_files.each do |dep, files|
 
-    end
-  end
+  #  end
+  #end
 
 
 end
