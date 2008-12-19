@@ -1,0 +1,1 @@
+alldeps = (depends_files.values + other_depends_files.values + pkginfo_depends.values).flatten
