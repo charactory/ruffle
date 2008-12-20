@@ -19,7 +19,6 @@
 #
 require 'find'
 require 'pathname'
-require 'time'
 require 'pp'
 require '/home/colin/projects/ruffle/ruffle_rules/pacman'
 
@@ -44,30 +43,39 @@ module Depends
     covered_depends = []
     odf = []
     #include covered deps and optdeps from pkginfo
-    Depends.getcovered((pkginfo.select {|k,v| k == :depend})[0][1], covered_depends)
+    dependlist = pkginfo.select {|k,v| k == :depend}
+    Depends.getcovered(dependlist[0][1], covered_depends) if not dependlist.empty?
 
-    #optdep = (pkginfo.select {|k,v| k == :optdepend})
-    #provides is not coming from here
-    #Depends.getcovered(optdep[0][1], covered_depends) if not optdep.empty?
+    optdependlist = pkginfo.select {|k,v| k == :optdepend}
+    Depends.getcovered(optdependlist[0][1], covered_depends) if not optdependlist.empty?
 
+    #include dependencies from depends list in pkginfo
+    Depends.getcovered(@pkginfo_depends.keys, covered_depends)
+
+    
     #Depends.getcovered(@depends_files.keys, covered_depends)
-    #Depends.getcovered(@pkginfo_depends.keys, covered_depends)
+
+    @smart_depends = odf - covered_depends
+    @other_depends_files.each_key {|key| odf << key[0]}
+
+    odf.each {|x| puts "I: File has link-level dependence on #{x}"}
+
     covered_depends.uniq!
     covered_depends.sort.each {|x| puts "I: Dependency covered by dependencies from link dependence (#{x})"}
     #pp (pkginfo.select {|k,v| k == :depend})
-    puts "pkginfo depends keys"
-    pp @pkginfo_depends.keys
-    puts "from other place"
-    pp (pkginfo.select {|k,v| k == :depend})[0][1]
-    #each_key {|x| odf << x[0]
+    #puts "pkginfo depends keys"
+    #pp @pkginfo_depends.keys
+    #puts "from other place"
+    #pp (pkginfo.select {|k,v| k == :depend})[0][1]
 
-    @other_depends_files.each_key {|key| odf << key[0]}
     #@other_depends_files.each_key {|key| odf << key[0]}
     #odf output is for 'file has link-level dependence on x'
-    @smart_depends = odf - covered_depends
+    
 
-    pp odf
-    pp @smart_depends
+    #need to fix smartdepends
+    puts @smart_depends.length
+    @smart_depends.each {|x| puts "I: Depends as ruffle sees them: depends=(#{x})"}
+
   end
 
   def Depends.get_files(file_list)
