@@ -21,6 +21,7 @@ require 'find'
 require 'pathname'
 require 'time'
 require 'pp'
+require '/home/colin/projects/ruffle/ruffle_rules/pacman'
 
 module Depends
   
@@ -41,20 +42,27 @@ module Depends
     Depends.find_pkginfo_depends(pkginfo)
 
     covered_depends = []
+    odf = []
     #include covered deps and optdeps from pkginfo
-    #Depends.getcovered((pkginfo.select {|k,v| k == 'depend'}), covered_depends)
-    Depends.getcovered((pkginfo.select {|k,v| k == 'optdepend'}), covered_depends)
+    Depends.getcovered((pkginfo.select {|k,v| k == :depend})[0][1], covered_depends)
 
-    Depends.getcovered(@depends_files.keys, covered_depends)
-    Depends.getcovered(@pkginfo_depends.keys, covered_depends)
+    #optdep = (pkginfo.select {|k,v| k == :optdepend})
+    #provides is not coming from here
+    #Depends.getcovered(optdep[0][1], covered_depends) if not optdep.empty?
+
+    #Depends.getcovered(@depends_files.keys, covered_depends)
+    #Depends.getcovered(@pkginfo_depends.keys, covered_depends)
     covered_depends.uniq!
-    covered_depends.each {|x| puts "I: Dependency covered by dependencies from link dependence (#{x})"}
-
+    covered_depends.sort.each {|x| puts "I: Dependency covered by dependencies from link dependence (#{x})"}
+    #pp (pkginfo.select {|k,v| k == :depend})
+    puts "pkginfo depends keys"
+    pp @pkginfo_depends.keys
+    puts "from other place"
+    pp (pkginfo.select {|k,v| k == :depend})[0][1]
     #each_key {|x| odf << x[0]
 
-    odf = []
-    #@other_depends_files.each_key {|key| odf << key[0]}
     @other_depends_files.each_key {|key| odf << key[0]}
+    #@other_depends_files.each_key {|key| odf << key[0]}
     #odf output is for 'file has link-level dependence on x'
     @smart_depends = odf - covered_depends
 
@@ -250,8 +258,8 @@ module Depends
     pacman_packages.each do |folder|
       @pkginfo_depends.each_key do |dep|
         #puts "#{File.basename(folder)}: #{dep}"
-        #if File.basename(folder).start_with?(dep)
-        if File.basename(folder).start_with?(dep) 
+        #if File.basename(folder).start_with?(dep) (/(#{dep})-([^-]*)-([^-]*)/) 
+        if File.basename(folder) =~ /(#{dep})-([^-]*)-([^-]*)/
         #if folder =~ (/#{dep}[><=]*(.*)/) #this regexp needs to be changed! ><= not used
         #if folder =~ (/#{dep}[.\d-]+/) #this regexp needs to be changed! ><= not used
           #puts folder
@@ -269,42 +277,14 @@ module Depends
     end
     
     #this block prints out the files owned by the dependencies stated in .PKGINFO
-    @pkginfo_depends.each_pair do |depname, deps|
-      puts deps.length
-      #puts "#{depname}: #{deps.join(" ")}"
-    end
+    #@pkginfo_depends.each_pair do |depname, deps|
+      #puts deps.length
+    #  puts "#{depname}: #{deps.join(" ")}"
+    #end
     
   end
 
-  
-  class Pacman
-
-    def initialize(package)
-      @package = package
-      @attrs = []
-    end
-
-    def load
-      #attr_reader :depends, :optdepends, :provides
-      File.open(@package).each do |line|
-        if line.start_with?('%')
-          @attrs << [line.gsub!('%', '').strip!.downcase] #make an array
-        elsif not @attrs.include?(line) and line.strip != ""
-          a = line.split('>')[0].split('<')[0].split('=')[0].to_s.chomp
-          (@attrs.last << a) if not a.nil?
-        end
-      end
-    end
-
-    def get_attr(attribute)
-      if not @attrs.empty?
-        @attrs.assoc(attribute).each {|x| yield x}
-      end     
-    end
-
-  end
-
-  def Depends.getcovered(deplist, covered_deps)
+   def Depends.getcovered(deplist, covered_deps)
     #accepts two arrays as arguments, one of deps to check and the other is an array to fill with covered dependencies found by this method
     full_package_names = []
     pacmandb = '/var/lib/pacman/local'
@@ -313,21 +293,23 @@ module Depends
     deplist.each do |pkgname|
       Dir.glob("#{pacmandb}/*").each do |folder|
         #if File.basename(folder).start_with?(pkgname)  #problematic because 'sh' matches a lot of things
+        #if the folder name matches the pkgname
         if File.basename(folder).scan(/(.*)-([^-]*)-([^-]*)/)[0][0] == pkgname
           full_package_names << folder #contains full path
         end
       end
     end
-
+    
+    #open the depends file and get all dependencies it specifies and sticks it in covered_deps
     full_package_names.each do |folder|
-      package = Depends::Pacman.new(File.join(folder, 'depends'))
+      package = Pacman.new(File.join(folder, 'depends'))
       package.load
       package.get_attr('depends') do |dep|
         if not covered_deps.include?(dep) #watch upcase
           #puts "Currently examined dep: #{dep}"
           #puts "Covered depedencies: #{(dep.to_a + covered_deps).join(" ")}"
           covered_deps << dep 
-          getcovered([dep], covered_deps)
+          getcovered([dep], covered_deps)  #apply this function to the dep too!
         end
       end
     end

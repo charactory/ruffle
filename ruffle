@@ -78,9 +78,9 @@ class Ruffle
           vars.each do |var|
             x.scan(/#{var} = (.*)/) do |val| 
               if @pkginfo.has_key?(var)
-                @pkginfo[var] << val
+                @pkginfo[var] << val.to_s.split(":")[0]
               else
-                @pkginfo[var] = [val]   #IMPORTANT: all pkginfo values are ARRAYS!
+                @pkginfo[var] = val   #IMPORTANT: all pkginfo values are ARRAYS!
               end
             end
           end
