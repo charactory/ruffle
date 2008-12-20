@@ -58,12 +58,7 @@ module Depends
     @smart_depends = odf - covered_depends
     @other_depends_files.each_key {|key| odf << key[0]}
 
-    odf.each {|x| puts "I: File has link-level dependence on #{x}"}
-
-    covered_depends.uniq!
-    covered_depends.sort.each {|x| puts "I: Dependency covered by dependencies from link dependence (#{x})"}
-    #pp (pkginfo.select {|k,v| k == :depend})
-    #puts "pkginfo depends keys"
+    odf.each {|x| puts "I: File has link-level dependence on #{x}"} covered_depends.uniq!  covered_depends.sort.each {|x| puts "I: Dependency covered by dependencies from link dependence (#{x})"} #pp (pkginfo.select {|k,v| k == :depend}) #puts "pkginfo depends keys"
     #pp @pkginfo_depends.keys
     #puts "from other place"
     #pp (pkginfo.select {|k,v| k == :depend})[0][1]
