@@ -42,28 +42,24 @@ module Depends
 
     covered_depends = []
     #include covered deps and optdeps from pkginfo
-    Depends.getcovered((pkginfo.select {|k,v| k == 'depend'}), covered_depends)
+    #Depends.getcovered((pkginfo.select {|k,v| k == 'depend'}), covered_depends)
     Depends.getcovered((pkginfo.select {|k,v| k == 'optdepend'}), covered_depends)
 
-    #Depends.getcovered(@depends_files.keys, covered_depends)
-    Depends.getcovered(@pkginfo_depends.keys, covered_depends) #this is problematic
-    #covered_depends.uniq! #have to use uniq because other
+    Depends.getcovered(@depends_files.keys, covered_depends)
+    Depends.getcovered(@pkginfo_depends.keys, covered_depends)
+    covered_depends.uniq!
     covered_depends.each {|x| puts "I: Dependency covered by dependencies from link dependence (#{x})"}
 
+    #each_key {|x| odf << x[0]
 
     odf = []
+    #@other_depends_files.each_key {|key| odf << key[0]}
     @other_depends_files.each_key {|key| odf << key[0]}
     #odf output is for 'file has link-level dependence on x'
-    odf.uniq!
-    pp odf
-    pp covered_depends
     @smart_depends = odf - covered_depends
 
+    pp odf
     pp @smart_depends
-    puts covered_depends.length
-    #if @smart_depends == covered_depends
-    #  puts "SAME!"
-    #end
   end
 
   def Depends.get_files(file_list)
@@ -246,6 +242,7 @@ module Depends
       if key == :depend
         #need to strip the <= >= signs
         #value.map! {|x| x.to_s.scan(/([^<>=]*)[><=]*(.*)/)[0].to_s}
+        #value.each {|x| @pkginfo_depends[x] = [] }
         value.each {|x| @pkginfo_depends[x.to_s.scan(/([^<>=]*)[><=]*(.*)/)[0].to_s] = [] }
       end
     end
@@ -282,14 +279,12 @@ module Depends
   
   class Pacman
 
-    def Pacman.load(package, attribute, &block)
+    def initialize(package)
       @package = package
       @attrs = []
-      Pacman.load_file
-      Pacman.get_attr(attribute, &block)
     end
 
-    def Pacman.load_file
+    def load
       #attr_reader :depends, :optdepends, :provides
       File.open(@package).each do |line|
         if line.start_with?('%')
@@ -301,7 +296,7 @@ module Depends
       end
     end
 
-    def Pacman.get_attr(attribute)
+    def get_attr(attribute)
       if not @attrs.empty?
         @attrs.assoc(attribute).each {|x| yield x}
       end     
@@ -325,8 +320,9 @@ module Depends
     end
 
     full_package_names.each do |folder|
-      #package = Depends::Pacman.new(File.join(folder, 'depends'))
-      Depends::Pacman.load(File.join(folder, 'depends'),'depends') do |dep|
+      package = Depends::Pacman.new(File.join(folder, 'depends'))
+      package.load
+      package.get_attr('depends') do |dep|
         if not covered_deps.include?(dep) #watch upcase
           #puts "Currently examined dep: #{dep}"
           #puts "Covered depedencies: #{(dep.to_a + covered_deps).join(" ")}"
@@ -345,8 +341,8 @@ module Depends
     File.open(pkginfo_path).each do |line|
 
     full_package_names.each do |folder|
-      #package = Depends::Pacman.load(File.join(folder, 'depends'))
-      Depends::Pacman.load(File.join(folder, 'depends'))
+      package = Depends::Pacman.new(File.join(folder, 'depends'))
+      package.load
       package.get_attr('depends') do |dep|
         if not covered_deps.include?(dep)
           #puts "Currently examined dep: #{dep}"
