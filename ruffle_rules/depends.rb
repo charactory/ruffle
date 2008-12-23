@@ -40,32 +40,33 @@ module Depends
     Depends.extract(sandbox,package_path)
     Depends.scan_libs(sandbox)
     Depends.find_depends
-    Depends.find_pkginfo_depends(pkginfo)
+    #Depends.find_pkginfo_depends(pkginfo)
 
     covered_depends = []
     pkg_covered = []
     odf = []
     #include covered deps and optdeps from pkginfo
     #this dependlist does not format its lines
-    dependlist = pkginfo.select {|k,v| k == :depend}
+    dependlist = []
+    pkginfo.select {|k,v| dependlist << v.join(" ") if k == :depend}
     #odf = odf + dependlist
-    Depends.getcovered(dependlist[0][1], pkg_covered) if not dependlist.empty?
+    #dependlist.map! {|k| k.join(" ")}
+    pp dependlist
+    Depends.getcovered(dependlist, pkg_covered) if not dependlist.empty?
 
-    optdependlist = pkginfo.select {|k,v| k == :optdepend}
-    Depends.getcovered(optdependlist[0][1], pkg_covered) if not optdependlist.empty?
+    optdependlist = []
+    pkginfo.select {|k,v| optdependlist << v.join(" ") if k == :optdepend}
+    #optdependlist = pkginfo.select {|k,v| k == :optdepend}
+    Depends.getcovered(optdependlist, pkg_covered) if not optdependlist.empty?
 
     #include dependencies from depends list in pkginfo
-    singlekey = []
-    @other_depends_files.each_key {|x| singlekey << x[0]}
-    puts 'singlekey'
-    pp singlekey.uniq!
-    Depends.getcovered(singlekey, covered_depends)
+    @other_depends_files.each_key {|x| odf << x[0]}
+    Depends.getcovered(odf, covered_depends)
+    #Depends.getcovered(@pkginfo_depends.keys, covered_depends)
     Depends.getcovered(@script_depends.keys, covered_depends)
 
-    
+    pp @other_depends_files 
     #Depends.getcovered(@depends_files.keys, covered_depends)
-
-    @other_depends_files.each_key {|key| odf << key[0]}
     #@smart_depends = odf - covered_depends
     odf.each do |x|
       if covered_depends.include?(x)
@@ -221,8 +222,7 @@ module Depends
   end
 
   def Depends.find_depends
-    pacmandb = '/var/lib/pacman/local'
-    pacman_packages = Dir.glob("#{pacmandb}/*")
+    pacman_packages = Dir.glob("/var/lib/pacman/local/*")
     pacman_packages.each do |folder|
       files_path = File.expand_path(File.join(folder, "files"))
       #puts "ahah" if not File.exist?(files_path)
