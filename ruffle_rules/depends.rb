@@ -30,7 +30,9 @@ module Depends
     @other_depends_files = {} #files that the package needs, arranged according to what packages owns them in pacman db
     @pkginfo_depends = {} #files that the dependencies of the package needs
 
-    @smart_depends = {}
+    @script_depends = {'ruby' => [], 'python' => [], 'bash' => []}
+
+    @smart_depends = []
     @sandbox = sandbox
 
     Depends.fill_libcache
@@ -41,24 +43,40 @@ module Depends
     Depends.find_pkginfo_depends(pkginfo)
 
     covered_depends = []
+    pkg_covered = []
     odf = []
     #include covered deps and optdeps from pkginfo
+    #this dependlist does not format its lines
     dependlist = pkginfo.select {|k,v| k == :depend}
-    Depends.getcovered(dependlist[0][1], covered_depends) if not dependlist.empty?
+    #odf = odf + dependlist
+    Depends.getcovered(dependlist[0][1], pkg_covered) if not dependlist.empty?
 
     optdependlist = pkginfo.select {|k,v| k == :optdepend}
-    Depends.getcovered(optdependlist[0][1], covered_depends) if not optdependlist.empty?
+    Depends.getcovered(optdependlist[0][1], pkg_covered) if not optdependlist.empty?
 
     #include dependencies from depends list in pkginfo
-    Depends.getcovered(@pkginfo_depends.keys, covered_depends)
+    singlekey = []
+    @other_depends_files.each_key {|x| singlekey << x[0]}
+    puts 'singlekey'
+    pp singlekey.uniq!
+    Depends.getcovered(singlekey, covered_depends)
+    Depends.getcovered(@script_depends.keys, covered_depends)
 
     
     #Depends.getcovered(@depends_files.keys, covered_depends)
 
-    @smart_depends = odf - covered_depends
     @other_depends_files.each_key {|key| odf << key[0]}
+    #@smart_depends = odf - covered_depends
+    odf.each do |x|
+      if covered_depends.include?(x)
+        @smart_depends << x
+      end
+    end
+    #pp odf
+    #pp covered_depends
+    #pp @depends_files.keys
 
-    odf.each {|x| puts "I: File has link-level dependence on #{x}"}
+    @other_depends_files.each_key {|x| puts "File ['#{x[1]}'] has link-level dependence with #{x[0]}"} 
     covered_depends.uniq! 
     covered_depends.sort.each {|x| puts "I: Dependency covered by dependencies from link dependence (#{x})"}
    
@@ -71,10 +89,11 @@ module Depends
     #@other_depends_files.each_key {|key| odf << key[0]}
     #odf output is for 'file has link-level dependence on x'
     
+    all_depends = (dependlist + optdependlist).uniq
 
     #need to fix smartdepends
     puts @smart_depends.length
-    @smart_depends.each {|x| puts "I: Depends as ruffle sees them: depends=(#{x})"}
+    puts "I: Depends as ruffle sees them: depends=(#{@smart_depends.uniq.join(" ")})"
 
   end
 
@@ -112,7 +131,7 @@ module Depends
 
   def Depends.scan_libs(sandbox)
     puts "Calling scan libs"
-    @depends_files.each_pair do |file, libs|
+    @depends_files.each_pair do |file, libs| #libs array is initially empty
       @raw_output = ""
       #puts libs
       puts file
@@ -123,27 +142,16 @@ module Depends
       end
       
       #puts @raw_error
-      #if not @raw_output.start_with?("readelf") or not @raw_output.nil?
-      #if not @raw_output.start_with?("readelf") and @raw_error.nil?
       if not @raw_error.start_with?("readelf")
         @raw_output.split("\n").each do |line|
           bitstring = line.split(" ")[0]
           if line =~ /Shared library: \[(.*)\]/
             if not bitstring.nil? and bitstring.length > 7 
-              #libs << (bitstring.length > 10 ? "x86-64" : "i686")
               if bitstring.length > 10
                 libs << @libcache['x86-64'][line.scan(/Shared library: \[(.*)\]/)]
-                puts @libcache['x86-64'][line.scan(/Shared library: \[(.*)\]/)].class
               else
-                #puts @libcache['i686'][line.scan(/Shared library: \[(.*)\]/)[0]]
-                #if not @libcache['i686'][line.scan(/Shared library: \[(.*)\]/)].nil?
-                  key = line.scan(/Shared library: \[(.*)\]/)[0].to_s
-                  #puts @libcache['i686'][line.scan(/Shared library: \[(.*)\]/)[0]]
-                  libs << @libcache['i686'][key]
-                  #puts @libcache['i686'][line.scan(/Shared library: \[(.*)\]/)[0]]
-                  #puts @libcache['i686'][line.scan(/Shared library: \[(.*)\]/)]
-                  #puts line.scan(/Shared library: \[(.*)\]/)
-                #end
+                key = line.scan(/Shared library: \[(.*)\]/)[0].to_s
+                libs << @libcache['i686'][key]
               end
             end
           end
@@ -158,9 +166,15 @@ module Depends
 
             if line =~ /#!.*ruby/
             #  puts "Is a Ruby script"
+              @script_depends['ruby'] << file
               break true
             elsif line =~ /#!.*python/
               puts "Is a Python script"
+              @script_depends['python'] << file
+              break true
+            elsif line =~ /#!.*bash/
+              puts "A bash script"
+              @script_depends['bash'] << file
               break true
             end
 
@@ -200,14 +214,13 @@ module Depends
           @libcache['x86-64'][ld_array[0][1]] = ld_array[0][3]
         else
           @libcache['i686'][ld_array[0][0]] = ld_array[0][2]
-          #puts @libcache['i686'][ld_array[0][0]]
         end
       end
     end
 
   end
 
-  def Depends.find_depends   #this is inhumanely slow!
+  def Depends.find_depends
     pacmandb = '/var/lib/pacman/local'
     pacman_packages = Dir.glob("#{pacmandb}/*")
     pacman_packages.each do |folder|
