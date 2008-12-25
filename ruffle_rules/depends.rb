@@ -17,8 +17,8 @@
 #   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 #
-require 'find'
-require 'pathname'
+#require 'find'
+#require 'pathname'
 require 'pp'
 require '/home/colin/projects/ruffle/ruffle_rules/pacman'
 
@@ -37,8 +37,8 @@ module Depends
 
     Depends.fill_libcache
     Depends.get_files(file_list)
-    Depends.extract(sandbox,package_path)
-    Depends.scan_libs(sandbox)
+    Depends.extract(package_path)
+    Depends.scan_libs
     Depends.find_depends
     #Depends.find_pkginfo_depends(pkginfo)
 
@@ -84,13 +84,17 @@ module Depends
    
     #pp (pkginfo.select {|k,v| k == :depend}) #puts "pkginfo depends keys"
     #pp @pkginfo_depends.keys
-    #puts "from other place"
-    #pp (pkginfo.select {|k,v| k == :depend})[0][1]
 
     #@other_depends_files.each_key {|key| odf << key[0]}
     #odf output is for 'file has link-level dependence on x'
     
     all_depends = (dependlist + optdependlist).uniq
+    @smart_depends.each do |x|
+      if not all_depends.include?(x)
+        #do stuff here
+        true
+      end
+    end
 
     #need to fix smartdepends
     puts @smart_depends.length
@@ -111,8 +115,8 @@ module Depends
     puts "Hash length: #{@depends_files.keys.length}"
   end
 
-  def Depends.extract(sandbox,package_path)
-    Open3.popen3("tar -C #{sandbox} -xf #{package_path} #{@depends_files.keys.join(" ")}") do |stdin, stdout, stderr|
+  def Depends.extract(package_path)
+    Open3.popen3("tar -C #{@sandbox} -xf #{package_path} #{@depends_files.keys.join(" ")}") do |stdin, stdout, stderr|
       error = stderr.gets
       if not error.nil?
 
@@ -130,29 +134,28 @@ module Depends
     end
   end
 
-  def Depends.scan_libs(sandbox)
+  def Depends.scan_libs(depends_files, script_depends, libcache, sandbox)
     puts "Calling scan libs"
-    @depends_files.each_pair do |file, libs| #libs array is initially empty
-      @raw_output = ""
-      #puts libs
-      puts file
+    depends_files.each_pair do |file, libs| #libs array is initially empty
+      raw_output = ""
+      raw_error = ""
 
       Open3.popen3("readelf -d #{File.join(sandbox,file)}") do |stdin, stdout, stderr|
-        @raw_output = stdout.read
-        @raw_error = stderr.read if not stderr.nil?
+        raw_output = stdout.read
+        raw_error = stderr.read if not stderr.nil?
       end
       
       #puts @raw_error
-      if not @raw_error.start_with?("readelf")
-        @raw_output.split("\n").each do |line|
+      if not raw_error.start_with?("readelf")
+        raw_output.split("\n").each do |line|
           bitstring = line.split(" ")[0]
           if line =~ /Shared library: \[(.*)\]/
             if not bitstring.nil? and bitstring.length > 7 
               if bitstring.length > 10
-                libs << @libcache['x86-64'][line.scan(/Shared library: \[(.*)\]/)]
+                libs << libcache['x86-64'][line.scan(/Shared library: \[(.*)\]/)]
               else
                 key = line.scan(/Shared library: \[(.*)\]/)[0].to_s
-                libs << @libcache['i686'][key]
+                libs << libcache['i686'][key]
               end
             end
           end
@@ -167,15 +170,15 @@ module Depends
 
             if line =~ /#!.*ruby/
             #  puts "Is a Ruby script"
-              @script_depends['ruby'] << file
+              script_depends['ruby'] << file
               break true
             elsif line =~ /#!.*python/
               puts "Is a Python script"
-              @script_depends['python'] << file
+              script_depends['python'] << file
               break true
             elsif line =~ /#!.*bash/
               puts "A bash script"
-              @script_depends['bash'] << file
+              script_depends['bash'] << file
               break true
             end
 
@@ -186,7 +189,7 @@ module Depends
     end
 
     #print out what libraries were obtained
-    @depends_files.each_pair do |f,libs|
+    depends_files.each_pair do |f,libs|
       pp "#{f}: #{libs.join(" ")}"
     end
 
@@ -230,11 +233,9 @@ module Depends
         files_contents = []
 
         File.open(files_path) do |file|
-          file.each_line {|line| files_contents << line.chomp!}
+          file.each_line {|line| files_contents << '/' + line.chomp!} #forward slash added to front
         end
         
-        #add a forward slash to each file in 'files'
-        files_contents.map! {|line| "/" + line}
 
         @depends_files.each_pair do |actualdep, libarray|
           # a very magical line
@@ -281,9 +282,7 @@ module Depends
         #puts "#{File.basename(folder)}: #{dep}"
         #if File.basename(folder).start_with?(dep) (/(#{dep})-([^-]*)-([^-]*)/) 
         if File.basename(folder) =~ /(#{dep})-([^-]*)-([^-]*)/
-        #if folder =~ (/#{dep}[><=]*(.*)/) #this regexp needs to be changed! ><= not used
         #if folder =~ (/#{dep}[.\d-]+/) #this regexp needs to be changed! ><= not used
-          #puts folder
           files_path = File.expand_path(File.join(folder, "files"))
           #if File.exist?(files_path)
             File.open(files_path) do |file|
@@ -346,7 +345,7 @@ module Depends
     full_package_names.each do |folder|
       package = Depends::Pacman.new(File.join(folder, 'depends'))
       package.load
-      package.get_attr('depends') do |dep|
+      package.get_attr('provides') do |dep|
         if not covered_deps.include?(dep)
           #puts "Currently examined dep: #{dep}"
           #puts "Covered depedencies: #{(dep.to_a + covered_deps).join(" ")}"
@@ -356,27 +355,7 @@ module Depends
       end
     end
   end
-
-  #do 
  
-  def Depends.open_filesdb
-    pacmandb = '/var/lib/pacman/local'
-    pacman_packages = Dir.glob("#{pacmandb}/*")
-    pacman_packages.each do |folder|
-      #if File.basename(folder).start_with?("glibc")
-      files_path = File.expand_path(File.join(folder, "files"))
-      puts "ahah" if not File.exist?(files_path)
-      if File.exist?(files_path)
-        files_contents = []
-
-        File.open(files_path) do |file|
-          #puts "opened file"
-          file.each_line {|line| files_contents << line.chomp!}
-        end
-      end
-    end
-  end
-
   #def Depends.depends_loader
   #  @other_depends_files.each do |dep, files|
 
