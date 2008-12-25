@@ -134,7 +134,7 @@ module Depends
     end
   end
 
-  def Depends.scan_libs(depends_files, script_depends, libcache, sandbox)
+  def Depends.scan_libs(depends_files=@depends_files, script_depends=@script_depends, libcache=@libcache, sandbox=@sandbox)
     puts "Calling scan libs"
     depends_files.each_pair do |file, libs| #libs array is initially empty
       raw_output = ""
@@ -165,26 +165,19 @@ module Depends
 
         #this is where we test for scripts
         #puts "Not a shared library"
-        File.open(File.join(sandbox,file)) do |file|
-          file.each do |line|
+        File.open(File.join(sandbox,file)).each_line do |line|
 
-            if line =~ /#!.*ruby/
-            #  puts "Is a Ruby script"
-              script_depends['ruby'] << file
-              break true
-            elsif line =~ /#!.*python/
-              puts "Is a Python script"
-              script_depends['python'] << file
-              break true
-            elsif line =~ /#!.*bash/
-              puts "A bash script"
-              script_depends['bash'] << file
+          script_depends.each_key do |lang|
+            if line =~ /#!.*#{lang}/
+              #puts "Is a Ruby script"
+              puts "Is a #{lang} script"
+              script_depends[lang] << file
               break true
             end
-
           end
 
         end
+
       end
     end
 
@@ -201,7 +194,7 @@ module Depends
   end
 
 
-  def Depends.fill_libcache
+  def Depends.fill_libcache(libcache=@libcache)
     #ldconfig allows us to find the paths to libraries
 
     raw_output = ""
@@ -215,9 +208,9 @@ module Depends
       ld_array = line.scan(/\s*(.*) \((.*)\) => (.*)/)
       if not ld_array[0].nil?
         if ld_array[0][1].start_with?('libc6,x86-64')
-          @libcache['x86-64'][ld_array[0][1]] = ld_array[0][3]
+          libcache['x86-64'][ld_array[0][1]] = ld_array[0][3]
         else
-          @libcache['i686'][ld_array[0][0]] = ld_array[0][2]
+          libcache['i686'][ld_array[0][0]] = ld_array[0][2]
         end
       end
     end
@@ -225,31 +218,29 @@ module Depends
   end
 
   def Depends.find_depends
-    pacman_packages = Dir.glob("/var/lib/pacman/local/*")
-    pacman_packages.each do |folder|
-      files_path = File.expand_path(File.join(folder, "files"))
-      #puts "ahah" if not File.exist?(files_path)
-      if File.exist?(files_path)
-        files_contents = []
+    Dir['/var/lib/pacman/local/*'].each do |folder|
 
-        File.open(files_path) do |file|
-          file.each_line {|line| files_contents << '/' + line.chomp!} #forward slash added to front
-        end
-        
+      files_path = File.join(folder, "files")
+      #if File.exist?(files_path)
+      files_contents = []
 
-        @depends_files.each_pair do |actualdep, libarray|
-          # a very magical line
-          depends_array = files_contents & libarray
-          dependency_name = File.basename(folder).scan(/(.*)-([^-]*)-([^-]*)/)[0][0]
-          if not depends_array.empty? 
-            if not @other_depends_files.key?([dependency_name, actualdep])
-              @other_depends_files[[dependency_name, actualdep]] = []
-            end
-            #puts "Adding to dict: #{depends_array.join(" ")}"
-            # dependency_name is the name of the folder/package which contains the shared dependency
-            # actualdep is the file belonging to the ruffled package which requires that shared library
-            @other_depends_files[[dependency_name, actualdep]] << depends_array
+      File.open(files_path).each_line do |line|
+        files_contents << '/' + line.chomp! #forward slash added to front
+      end
+       
+
+      @depends_files.each_pair do |actualdep, libarray|
+        # a very magical line
+        depends_array = files_contents & libarray
+        dependency_name = File.basename(folder).scan(/(.*)-([^-]*)-([^-]*)/)[0][0]
+        if not depends_array.empty? 
+          if not @other_depends_files.key?([dependency_name, actualdep])
+            @other_depends_files[[dependency_name, actualdep]] = []
           end
+          #puts "Adding to dict: #{depends_array.join(" ")}"
+          # dependency_name is the name of the folder/package which contains the shared dependency
+          # actualdep is the file belonging to the ruffled package which requires that shared library
+          @other_depends_files[[dependency_name, actualdep]] << depends_array
         end
       end
     end
