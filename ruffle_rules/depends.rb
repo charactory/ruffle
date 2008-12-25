@@ -30,7 +30,7 @@ module Depends
     @other_depends_files = {} #files that the package needs, arranged according to what packages owns them in pacman db
     @pkginfo_depends = {} #files that the dependencies of the package needs
 
-    @script_depends = {'ruby' => [], 'python' => [], 'bash' => []}
+    @script_depends = {'ruby' => [], 'perl' => [], 'tk' => [], 'wish' => [], 'expect' => [], 'python' => [], 'bash' => []}
 
     @smart_depends = []
     @sandbox = sandbox
@@ -152,7 +152,7 @@ module Depends
           if line =~ /Shared library: \[(.*)\]/
             if not bitstring.nil? and bitstring.length > 7 
               if bitstring.length > 10
-                libs << libcache['x86-64'][line.scan(/Shared library: \[(.*)\]/)]
+                libs << libcache['x86-64'][line.scan(/Shared library: \[(.*)\]/)[0].to_s]
               else
                 key = line.scan(/Shared library: \[(.*)\]/)[0].to_s
                 libs << libcache['i686'][key]
@@ -227,7 +227,6 @@ module Depends
       File.open(files_path).each_line do |line|
         files_contents << '/' + line.chomp! #forward slash added to front
       end
-       
 
       @depends_files.each_pair do |actualdep, libarray|
         # a very magical line
@@ -315,7 +314,7 @@ module Depends
     full_package_names.each do |folder|
       package = Pacman.new(File.join(folder, 'depends'))
       package.load
-      package.get_attr('depends') do |dep|
+      package.depends.each do |dep|
         if not covered_deps.include?(dep) #watch upcase
           #puts "Currently examined dep: #{dep}"
           #puts "Covered depedencies: #{(dep.to_a + covered_deps).join(" ")}"
@@ -333,25 +332,20 @@ module Depends
     
     File.open(pkginfo_path).each do |line|
 
-    full_package_names.each do |folder|
-      package = Depends::Pacman.new(File.join(folder, 'depends'))
-      package.load
-      package.get_attr('provides') do |dep|
-        if not covered_deps.include?(dep)
-          #puts "Currently examined dep: #{dep}"
-          #puts "Covered depedencies: #{(dep.to_a + covered_deps).join(" ")}"
-          covered_deps << dep 
-          getcovered([dep], covered_deps)
+      full_package_names.each do |folder|
+        package = Depends::Pacman.new(File.join(folder, 'depends'))
+        package.load
+        package.get_attr('provides') do |dep|
+          if not covered_deps.include?(dep)
+            #puts "Currently examined dep: #{dep}"
+            #puts "Covered depedencies: #{(dep.to_a + covered_deps).join(" ")}"
+            covered_deps << dep 
+            getcovered([dep], covered_deps)
+          end
         end
       end
     end
-  end
  
-  #def Depends.depends_loader
-  #  @other_depends_files.each do |dep, files|
-
-  #  end
-  #end
-
   end
+
 end
