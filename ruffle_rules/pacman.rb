@@ -60,21 +60,15 @@
       #remove <>=: signs
       array[1].strip.to_a.each {|x| attr << x.split('>')[0].split('<')[0].split('=')[0].split(':')[0].to_s.chomp}
     end
-
-    def get_attr(attribute)
-      if not @attrs.empty?
-        @attrs[attribute].each {|x| yield x}
-      end     
-    end
     
   end
 
 
 #require 'pp'
 #p = Pacman.new('/var/lib/pacman/local/libtiff-3.8.2-4/depends')
-pac = Pacman.new('/var/lib/pacman/local/gtk2-2.14.6-1/depends')
-pac.load
-puts pac.depends
+#pac = Pacman.new('/var/lib/pacman/local/gtk2-2.14.6-1/depends')
+#pac.load
+#puts pac.depends
 #puts pac.methods
 #arr = []
 #p.get_attr('depends') {|x| arr << x }
