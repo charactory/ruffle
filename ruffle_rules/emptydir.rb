@@ -20,7 +20,7 @@
 
 module Emptydir
 
-  def Emptydir.analyze(files, package_path, sandbox, pkginfo)
+  def Emptydir.analyze(files, package_path, pkginfo)
     listed_dirs = {}
     dir_group = {}
     file_group = {}

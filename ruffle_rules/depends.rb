@@ -24,7 +24,7 @@ require '/home/colin/projects/ruffle/ruffle_rules/pacman'
 
 module Depends
   
-  def Depends.analyze(file_list, package_path, sandbox, pkginfo)
+  def Depends.analyze(file_list, package_path, pkginfo)
     @libcache = {'x86-64' => {}, 'i686' => {}}
     @depends_files = {}  #files that the package needs
     @other_depends_files = {} #files that the package needs, arranged according to what packages owns them in pacman db
@@ -33,7 +33,6 @@ module Depends
     @script_depends = {'ruby' => [], 'perl' => [], 'tk' => [], 'wish' => [], 'expect' => [], 'python' => [], 'bash' => []}
 
     @smart_depends = []
-    @sandbox = sandbox
 
     Depends.fill_libcache
     Depends.get_files(file_list)
@@ -41,7 +40,6 @@ module Depends
     Depends.scan_libs
     Depends.find_depends
     #Depends.find_pkginfo_depends(pkginfo)
-
     covered_depends = []
     pkg_covered = []
     odf = []
@@ -116,7 +114,7 @@ module Depends
   end
 
   def Depends.extract(package_path)
-    Open3.popen3("tar -C #{@sandbox} -xf #{package_path} #{@depends_files.keys.join(" ")}") do |stdin, stdout, stderr|
+    Open3.popen3("tar -C #{SANDBOX} -xf #{package_path} #{@depends_files.keys.join(" ")}") do |stdin, stdout, stderr|
       error = stderr.gets
       if not error.nil?
 
@@ -134,13 +132,13 @@ module Depends
     end
   end
 
-  def Depends.scan_libs(depends_files=@depends_files, script_depends=@script_depends, libcache=@libcache, sandbox=@sandbox)
+  def Depends.scan_libs(depends_files=@depends_files, script_depends=@script_depends, libcache=@libcache)
     puts "Calling scan libs"
     depends_files.each_pair do |file, libs| #libs array is initially empty
       raw_output = ""
       raw_error = ""
 
-      Open3.popen3("readelf -d #{File.join(sandbox,file)}") do |stdin, stdout, stderr|
+      Open3.popen3("readelf -d #{File.join(SANDBOX,file)}") do |stdin, stdout, stderr|
         raw_output = stdout.read
         raw_error = stderr.read if not stderr.nil?
       end
@@ -165,7 +163,7 @@ module Depends
 
         #this is where we test for scripts
         #puts "Not a shared library"
-        File.open(File.join(sandbox,file)).each_line do |line|
+        File.open(File.join(SANDBOX,file)).each_line do |line|
 
           script_depends.each_key do |lang|
             if line =~ /#!.*#{lang}/
@@ -328,7 +326,7 @@ module Depends
 
 
   def Depends.getprovides 
-    pkginfo_path = File.join(@sandbox,'.PKGINFO')
+    pkginfo_path = File.join(SANDBOX,'.PKGINFO')
     
     File.open(pkginfo_path).each do |line|
 

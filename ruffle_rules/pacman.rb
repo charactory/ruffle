@@ -23,67 +23,43 @@
 
     def initialize(package)
       @package = package
-      #@attrs = {'depends' => [], 'optdepends' => [], 'provides' => [], 'conflicts' => []} 
+
       @depends = []
       @optdepends = []
       @provides = []
       @conflicts = []
+      attrs = [@depends, @optdepends, @provides, @conflicts]
+      #attrs.each {|x| puts x.class}
     end
 
     def load
       #current_attr = String.new
-      line = File.open(@package).readlines.join
-      #pp line
-      #pp line[(/^%(.*)%\n(.*)/), 0]
-      vars = line.scan(/^%(.*)%\n([^%]*)/)
+      lines = File.open(@package).readlines.join
+      vars = lines.scan(/^%(.*)%\n([^%]*)/)
       vars.each do |array|
         attr_name = array[0].downcase
-        #puts array[0].downcase
-          #array[1].strip.to_a.each {|x| pp x.split('>')[0].split('<')[0].split('=')[0].split(':')[0].to_s.chomp}
         #careful: newline may be a problem
         if attr_name == 'depends'
-          array[1].strip.to_a.each {|x| @depends << x.split('>')[0].split('<')[0].split('=')[0].split(':')[0].to_s.chomp}
+          store_name(array,@depends)
           break
         elsif attr_name == 'optdepends'
-          array[1].strip.to_a.each {|x| @optdepends << x.split('>')[0].split('<')[0].split('=')[0].split(':')[0].to_s.chomp}
+          store_name(array,@optdepends)
           break
         elsif attr_name == 'provides'
-          array[1].strip.to_a.each {|x| @provides << x.split('>')[0].split('<')[0].split('=')[0].split(':')[0].to_s.chomp}
+          store_name(array,@provides)
           break
         elsif attr_name == 'conflicts'
-          array[1].strip.to_a.each {|x| @conflicts << x.split('>')[0].split('<')[0].split('=')[0].split(':')[0].to_s.chomp}
+          store_name(array,@conflicts)
           break
         end
       end
 
     end
-        #puts vars[0]
-        #puts vars[1]
-        #@attrs[vars[0]] = vars[1].split('\n') if not vars.nil?
 
-=begin
-        if line =~ /%DEPENDS%/
-          current_attr = 'depends'
-          #next
-        elsif line =~ /%OPTDEPENDS%/
-          current_attr = 'optdepends'
-          #next
-        elsif line =~ /%PROVIDES%/
-          #line.delete("%").downcase
-          current_attr = 'provides'
-          #next
-        elsif line =~ /%CONFLICTS%/
-          current_attr = 'conflicts'
-          #next
-        else
-          if line.strip != "" and not line.start_with?('%')
-            a = line.split('>')[0].split('<')[0].split('=')[0].to_s.chomp
-            @attrs[current_attr] << a
-          end
-        end
-=end
-#      end
-  #  end
+    def store_name(array, attr)
+      #remove <>=: signs
+      array[1].strip.to_a.each {|x| attr << x.split('>')[0].split('<')[0].split('=')[0].split(':')[0].to_s.chomp}
+    end
 
     def get_attr(attribute)
       if not @attrs.empty?
@@ -99,5 +75,6 @@
 pac = Pacman.new('/var/lib/pacman/local/gtk2-2.14.6-1/depends')
 pac.load
 puts pac.depends
+#puts pac.methods
 #arr = []
 #p.get_attr('depends') {|x| arr << x }

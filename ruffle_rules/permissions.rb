@@ -20,7 +20,7 @@
 
 module Permissions
 
-  def Permissions.analyze(files, package_path, sandbox, pkginfo)
+  def Permissions.analyze(files, package_path, pkginfo)
     files.each do |file| 
       #puts file[5] if file[0].start_with?('dr') #view directories
       #puts file[5] #view directories
@@ -28,8 +28,6 @@ module Permissions
       #puts file[0].scan(/.?/).each {|x| puts x}
       case 
       when file[0].start_with?("d")
-        #puts "Is a directory"
-        #puts "Is executable" if file[0].end_with?("x")
         puts "Is not executable" if not file[0].end_with?("x")
       when file[0].start_with?("-")
         #puts "Is a file"

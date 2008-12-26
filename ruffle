@@ -1,5 +1,6 @@
-#!/usr/bin/ruby -w
-# 
+#!/usr/bin/ruby -w 
+#
+#!/usr/bin/ruby-1.9 -w 
 # ruffle - a rubyfied Pacman package analyzer
 # Copyright (C) 2008 Colin Gan <laxatives@gmail.com>
 # 
@@ -22,17 +23,17 @@ require 'rubygems'
 require 'fileutils'
 require 'tmpdir'
 require 'open3' 
-
+#require 'profile'
+SANDBOX = "#{Dir.tmpdir}/ruffle_#{Process.pid}"
 #
 #this is an ugly way of getting the rule modules easily...
-#Dir.glob(File.dirname(__FILE__) + '/ruffle_rules/*.rb').each {|rule| require rule} 
 Dir.glob('/home/colin/projects/ruffle/ruffle_rules/*.rb').each {|rule| require rule} 
 #require 'ruffle_rules/permissions'
 
 class Ruffle
 
   def initialize(package_name)
-    @sandbox = "#{Dir.tmpdir}/ruffle_#{Process.pid}"
+    #SANDBOX = "#{Dir.tmpdir}/ruffle_#{Process.pid}"
     @package_path = package_name
     @files = []
     @pkginfo = {}
@@ -43,8 +44,8 @@ class Ruffle
   end
 
   def open_package
-    if not File.exist?(@sandbox)
-      Dir.mkdir(@sandbox) 
+    if not File.exist?(SANDBOX)
+      Dir.mkdir(SANDBOX) 
     end
   end
 
@@ -67,36 +68,33 @@ class Ruffle
             :pkgname, :pkgver, :pkgdesc, :url, :builddate, :packager, :size, :arch, :license, :depend, :optdepend, :md5sum, :sha1sum, :install, :filename, :replaces, :provides
             ] 
 
-    pinfo_path = "#{@sandbox}/.PKGINFO" 
+    pinfo_path = "#{SANDBOX}/.PKGINFO" 
 
     if File.exist?(pinfo_path)
       puts "Package info exists!"
 
-      begin
-
-        File.open(pinfo_path).each do |x|
-          vars.each do |var|
-            x.scan(/#{var} = (.*)/) do |val| 
-              if @pkginfo.has_key?(var)
-                @pkginfo[var] << val.to_s.split(":")[0]
-              else
-                @pkginfo[var] = val   #IMPORTANT: all pkginfo values are ARRAYS!
-              end
+      File.open(pinfo_path).each do |x|
+        vars.each do |var|
+          x.scan(/#{var} = (.*)/) do |val| 
+            if @pkginfo.has_key?(var)
+              @pkginfo[var] << val.to_s.split(":")[0] #get rid of colon in optdepends
+            else
+              @pkginfo[var] = val   #IMPORTANT: all pkginfo values are ARRAYS!
             end
           end
-
         end
-        @pkginfo.each_pair {|x,y| puts "#{x} = #{y}"}
+
       end
+      @pkginfo.each_pair {|x,y| puts "#{x} = #{y}"}
 
     end
   end
   
   def extract_pkginfo
     `tar -tvf #{@package_path}`.split("\n").each {|x| @files << x.split(" ")}
-    Dir.mkdir(@sandbox) 
+    Dir.mkdir(SANDBOX) 
 
-    Open3.popen3("tar -C #{@sandbox} -xf #{@package_path} .PKGINFO") do |stdin, stdout, stderr|
+    Open3.popen3("tar -C #{SANDBOX} -xf #{@package_path} .PKGINFO") do |stdin, stdout, stderr|
       error = stderr.gets
       if not error.nil?
 
@@ -115,9 +113,9 @@ class Ruffle
   end
 
   def apply_rules
-    [Permissions, Depends].each {|rule| rule.analyze(@files, @package_path,@sandbox, @pkginfo)} 
+    [Depends, Emptydir, Permissions].each {|rule| rule.analyze(@files, @package_path, @pkginfo)} 
     #remove for now
-    #FileUtils.rm_r(@sandbox, :secure => true)
+    #FileUtils.rm_r(SANDBOX, :secure => true)
   end
 
 end
