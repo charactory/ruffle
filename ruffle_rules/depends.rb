@@ -49,7 +49,6 @@ module Depends
     pkginfo.select {|k,v| dependlist << v.join(" ") if k == :depend}
     #odf = odf + dependlist
     #dependlist.map! {|k| k.join(" ")}
-    #pp dependlist
     Depends.getcovered(dependlist, pkg_covered) if not dependlist.empty?
 
     optdependlist = []
@@ -60,8 +59,18 @@ module Depends
     #include dependencies from depends list in pkginfo
     @other_depends_files.each_key {|x| odf << x}
     Depends.getcovered(odf, covered_depends)
-    #Depends.getcovered(@pkginfo_depends.keys, covered_depends)
-    Depends.getcovered(@script_depends.keys, covered_depends)
+
+    #TODO: fix script dependencies
+    #pass found script dependencies through covered_depends
+    found_scripts = []
+    @script_depends.each_key do |script|
+      if not @script_depends[script].size
+        found_scripts << script
+      end
+    end
+
+    Depends.getcovered(found_scripts, covered_depends)
+
 
     pp @other_depends_files 
     #Depends.getcovered(@depends_files.keys, covered_depends)
@@ -74,30 +83,31 @@ module Depends
 
     @other_depends_files.each_pair do |key, value|
       d = value.keys.flatten
-      #value.each_key do |v|
-        puts "File #{d.inspect} link-level dependence with #{key}"
-      #end
+      puts "File #{d.inspect} link-level dependence with #{key}"
     end
     covered_depends.uniq! 
     covered_depends.sort.each {|x| puts "I: Dependency covered by dependencies from link dependence (#{x})"}
-   
-   
-    #pp (pkginfo.select {|k,v| k == :depend}) #puts "pkginfo depends keys"
-    #pp @pkginfo_depends.keys
 
-    #@other_depends_files.each_key {|key| odf << key[0]}
-    #odf output is for 'file has link-level dependence on x'
-    
+    smart_provides = []
+    Depends.getprovides(@other_depends_files.keys, smart_provides)
+   
     all_depends = (dependlist + optdependlist).uniq
     @smart_depends.each do |x|
       if not all_depends.include?(x)
         #do stuff here
+        puts "W: Dependency detected and not included: #{x}"
         true
       end
     end
 
-    #need to fix smartdepends
-    #puts @smart_depends.length
+    dependlist.each do |x|
+      if covered_depends.include?(x) and @other_depends_files.keys.include?(x)
+        puts "W: Dependency included but already satisfied: (#{x})"
+      elsif not @smart_depends.include?(x) and not @smart_provides.include(x)
+        puts "W: Dependency included and not needed: (#{x})"
+      end
+    end
+
     puts "I: Depends as ruffle sees them: depends=(#{@smart_depends.uniq.join(" ")})"
 
   end
@@ -300,7 +310,7 @@ module Depends
     
   end
 
-   def Depends.getcovered(deplist, covered_deps)
+  def Depends.getcovered(deplist, covered_deps, *current)
     #accepts two arrays as arguments, one of deps to check and the other is an array to fill with covered dependencies found by this method
     full_package_names = []
     pacmandb = '/var/lib/pacman/local'
@@ -321,11 +331,12 @@ module Depends
       package = Pacman.new(File.join(folder, 'depends'))
       package.load
       package.depends.each do |dep|
-        if not covered_deps.include?(dep) #watch upcase
+        if not covered_deps.include?(dep) and not package.depends.empty? #watch upcase
           #puts "Currently examined dep: #{dep}"
+          #puts package.depends.inspect
           #puts "Covered depedencies: #{(dep.to_a + covered_deps).join(" ")}"
           covered_deps << dep 
-          getcovered([dep], covered_deps)  #apply this function to the dep too!
+          Depends.getcovered([dep], covered_deps)  #apply this function to the dep too!
         end
       end
     end
@@ -333,25 +344,33 @@ module Depends
   end
 
 
-  def Depends.getprovides 
-    pkginfo_path = File.join(SANDBOX,'.PKGINFO')
+  def Depends.getprovides(deplist, smart_provides)
+    #get all the provides of all dependencies listed
+    full_package_names = []
+    pacmandb = '/var/lib/pacman/local'
+
+    deplist.each do |pkgname|
+      Dir.glob("#{pacmandb}/*").each do |folder|
+        #if File.basename(folder).start_with?(pkgname)  #problematic because 'sh' matches a lot of things
+        #if the folder name matches the pkgname
+        if File.basename(folder).scan(/(.*)-([^-]*)-([^-]*)/)[0][0] == pkgname
+          full_package_names << folder #contains full path
+        end
+      end
+    end
     
-    File.open(pkginfo_path).each do |line|
-
-      full_package_names.each do |folder|
-        package = Depends::Pacman.new(File.join(folder, 'depends'))
-        package.load
-        package.get_attr('provides') do |dep|
-          if not covered_deps.include?(dep)
-            #puts "Currently examined dep: #{dep}"
-            #puts "Covered depedencies: #{(dep.to_a + covered_deps).join(" ")}"
-            covered_deps << dep 
-            getcovered([dep], covered_deps)
-          end
+    full_package_names.each do |folder|
+      package = Pacman.new(File.join(folder, 'depends'))
+      package.load
+      package.provides.each do |prov|
+        if not covered_deps.include?(dep) and not package.provides.empty? #watch upcase
+          smart_provides << prov
         end
       end
     end
- 
+
   end
+
+
 
 end
