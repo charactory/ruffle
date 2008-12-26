@@ -49,7 +49,7 @@ module Depends
     pkginfo.select {|k,v| dependlist << v.join(" ") if k == :depend}
     #odf = odf + dependlist
     #dependlist.map! {|k| k.join(" ")}
-    pp dependlist
+    #pp dependlist
     Depends.getcovered(dependlist, pkg_covered) if not dependlist.empty?
 
     optdependlist = []
@@ -58,7 +58,7 @@ module Depends
     Depends.getcovered(optdependlist, pkg_covered) if not optdependlist.empty?
 
     #include dependencies from depends list in pkginfo
-    @other_depends_files.each_key {|x| odf << x[0]}
+    @other_depends_files.each_key {|x| odf << x}
     Depends.getcovered(odf, covered_depends)
     #Depends.getcovered(@pkginfo_depends.keys, covered_depends)
     Depends.getcovered(@script_depends.keys, covered_depends)
@@ -67,15 +67,17 @@ module Depends
     #Depends.getcovered(@depends_files.keys, covered_depends)
     #@smart_depends = odf - covered_depends
     odf.each do |x|
-      if covered_depends.include?(x)
+      if not covered_depends.include?(x)
         @smart_depends << x
       end
     end
-    #pp odf
-    #pp covered_depends
-    #pp @depends_files.keys
 
-    @other_depends_files.each_key {|x| puts "File ['#{x[1]}'] has link-level dependence with #{x[0]}"} 
+    @other_depends_files.each_pair do |key, value|
+      d = value.keys.flatten
+      #value.each_key do |v|
+        puts "File #{d.inspect} link-level dependence with #{key}"
+      #end
+    end
     covered_depends.uniq! 
     covered_depends.sort.each {|x| puts "I: Dependency covered by dependencies from link dependence (#{x})"}
    
@@ -95,7 +97,7 @@ module Depends
     end
 
     #need to fix smartdepends
-    puts @smart_depends.length
+    #puts @smart_depends.length
     puts "I: Depends as ruffle sees them: depends=(#{@smart_depends.uniq.join(" ")})"
 
   end
@@ -110,7 +112,7 @@ module Depends
       end
     end
     #@depends_files.each {|x| puts x}
-    puts "Hash length: #{@depends_files.keys.length}"
+    #puts "Hash length: #{@depends_files.keys.length}"
   end
 
   def Depends.extract(package_path)
@@ -133,7 +135,7 @@ module Depends
   end
 
   def Depends.scan_libs(depends_files=@depends_files, script_depends=@script_depends, libcache=@libcache)
-    puts "Calling scan libs"
+    #puts "Calling scan libs"
     depends_files.each_pair do |file, libs| #libs array is initially empty
       raw_output = ""
       raw_error = ""
@@ -231,30 +233,36 @@ module Depends
         depends_array = files_contents & libarray
         dependency_name = File.basename(folder).scan(/(.*)-([^-]*)-([^-]*)/)[0][0]
         if not depends_array.empty? 
-          if not @other_depends_files.key?([dependency_name, actualdep])
-            @other_depends_files[[dependency_name, actualdep]] = []
+          if not @other_depends_files.key?(dependency_name)
+            @other_depends_files[dependency_name] = {}
           end
+          #new bit
+
+          #if not @other_depends_files.key?([dependency_name, actualdep])
+          #  @other_depends_files[[dependency_name, actualdep]] = []
+          #end
           #puts "Adding to dict: #{depends_array.join(" ")}"
           # dependency_name is the name of the folder/package which contains the shared dependency
           # actualdep is the file belonging to the ruffled package which requires that shared library
-          @other_depends_files[[dependency_name, actualdep]] << depends_array
+          
+          @other_depends_files[dependency_name][actualdep] = depends_array
+          #@other_depends_files[[dependency_name, actualdep]] << depends_array
         end
       end
     end
 
     #this block prints out 'installed package: shared library dependencies'
-    puts @other_depends_files.size
-    @other_depends_files.each_pair do |dep, files|
-      pp "#{dep[1]} requires #{dep[0]}: #{files.join(" ")}"
-    end
+    #puts @other_depends_files.size
+    #@other_depends_files.each_pair do |dep, actualdep|
+    #  pp "#{dep} requires #{actualdep.values.join(" ")}: #{actualdep}"
+    #end
   end
 
   def Depends.find_pkginfo_depends(pkginfo)
 
     files_contents = {}
     pacmandb = '/var/lib/pacman/local'
-    pacman_packages = Dir.glob("#{pacmandb}/*")
-    
+    pacman_packages = Dir.glob("#{pacmandb}/*") 
     #fills @pkginfo_depends with names of dependencies from .PKGINFO
     pkginfo.each_pair do |key,value|
       if key == :depend
