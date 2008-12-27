@@ -43,23 +43,23 @@ module Depends
     #Depends.find_pkginfo_depends(pkginfo)
     covered_depends = []
     pkg_covered = []
-    odf = []
+    #odf = []
     #include covered deps and optdeps from pkginfo
     #this dependlist does not format its lines
     dependlist = []
-    pkginfo.select {|k,v| dependlist << v.join(" ") if k == :depend}
-    #odf = odf + dependlist
-    #dependlist.map! {|k| k.join(" ")}
+    dependlist = pkginfo[:depend].map {|x| x.split('<')[0].split('>')[0].split('=')[0].to_s} if not pkginfo[:depend].nil?
+    dependlist.delete(pkginfo[:pkgname].join)
+    
     Depends.getcovered(dependlist, pkg_covered) if not dependlist.empty?
 
     optdependlist = []
-    pkginfo.select {|k,v| optdependlist << v.join(" ") if k == :optdepend}
-    #optdependlist = pkginfo.select {|k,v| k == :optdepend}
+    optdependlist = pkginfo[:optdepend].map {|x| x.split('<')[0].split('>')[0].split('=')[0].to_s} if not pkginfo[:optdepend].nil?
     Depends.getcovered(optdependlist, pkg_covered) if not optdependlist.empty?
 
     #include dependencies from depends list in pkginfo
-    @other_depends_files.each_key {|x| odf << x}
-    Depends.getcovered(odf, covered_depends)
+    #
+    #@other_depends_files.each_key {|x| odf << x}
+    Depends.getcovered(@other_depends_files.keys, covered_depends)
 
     #TODO: fix script dependencies
     #pass found script dependencies through covered_depends
@@ -73,10 +73,12 @@ module Depends
     Depends.getcovered(found_scripts, covered_depends)
 
 
-    pp @other_depends_files 
+    #pp @other_depends_files 
+    puts pkginfo[:pkgname]
+    @other_depends_files.delete(pkginfo[:pkgname].join)
     #Depends.getcovered(@depends_files.keys, covered_depends)
     #@smart_depends = odf - covered_depends
-    odf.each do |x|
+    @other_depends_files.keys.each do |x|
       if not covered_depends.include?(x)
         @smart_depends << x
       end
@@ -91,12 +93,16 @@ module Depends
 
     smart_provides = []
     Depends.getprovides(@other_depends_files.keys, smart_provides)
+
+    @smart_depends.delete(pkginfo[:pkgname].join)
    
     all_depends = (dependlist + optdependlist).uniq
+    pp @smart_depends
     @smart_depends.each do |x|
       if not all_depends.include?(x)
-        #do stuff here
-        puts "W: Dependency detected and not included: #{x}"
+        #pp pkginfo[:pkgname]
+        #pp x
+        puts "W: Dependency detected and not included: #{x} from files #{@other_depends_files[x].values.flatten.inspect}"
         true
       end
     end
@@ -109,7 +115,7 @@ module Depends
       end
     end
 
-    puts "I: Depends as ruffle sees them: depends=(#{@smart_depends.uniq.join(" ")})"
+    puts "I: Depends as ruffle sees them: depends=(#{@smart_depends})"
 
   end
 
@@ -266,8 +272,7 @@ module Depends
   def Depends.find_pkginfo_depends(pkginfo)
 
     files_contents = {}
-    pacmandb = '/var/lib/pacman/local'
-    pacman_packages = Dir.glob("#{pacmandb}/*") 
+    pacman_packages = Dir.glob("/var/lib/pacman/local/*") 
     #fills @pkginfo_depends with names of dependencies from .PKGINFO
     pkginfo.each_pair do |key,value|
       if key == :depend
