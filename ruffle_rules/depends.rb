@@ -35,6 +35,8 @@ module Depends
     @smart_depends = []
     @smart_provides = []
 
+    @pacman_db = '/var/lib/pacman/local'
+
     Depends.fill_libcache
     Depends.get_files(file_list)
     Depends.extract(package_path)
@@ -79,9 +81,9 @@ module Depends
     #Depends.getcovered(@depends_files.keys, covered_depends)
     #@smart_depends = odf - covered_depends
     @other_depends_files.keys.each do |x|
-      if not covered_depends.include?(x)
-        @smart_depends << x
-      end
+    if not covered_depends.include?(x)
+      (@smart_depends << x)
+    end
     end
 
     @other_depends_files.each_pair do |key, value|
@@ -90,6 +92,8 @@ module Depends
     end
     covered_depends.uniq! 
     covered_depends.sort.each {|x| puts "I: Dependency covered by dependencies from link dependence (#{x})"}
+    puts 'covereddep'
+    pp covered_depends
 
     smart_provides = []
     Depends.getprovides(@other_depends_files.keys, smart_provides)
@@ -198,9 +202,9 @@ module Depends
     end
 
     #print out what libraries were obtained
-    depends_files.each_pair do |f,libs|
-      pp "#{f}: #{libs.join(" ")}"
-    end
+    #depends_files.each_pair do |f,libs|
+    #  pp "#{f}: #{libs.join(" ")}"
+    #end
 
   end
 
@@ -232,7 +236,6 @@ module Depends
     Dir['/var/lib/pacman/local/*'].each do |folder|
 
       files_path = File.join(folder, "files")
-      #if File.exist?(files_path)
       files_contents = []
 
       File.open(files_path).each_line do |line|
@@ -247,32 +250,21 @@ module Depends
           if not @other_depends_files.key?(dependency_name)
             @other_depends_files[dependency_name] = {}
           end
-          #new bit
 
-          #if not @other_depends_files.key?([dependency_name, actualdep])
-          #  @other_depends_files[[dependency_name, actualdep]] = []
-          #end
-          #puts "Adding to dict: #{depends_array.join(" ")}"
           # dependency_name is the name of the folder/package which contains the shared dependency
           # actualdep is the file belonging to the ruffled package which requires that shared library
           
           @other_depends_files[dependency_name][actualdep] = depends_array
-          #@other_depends_files[[dependency_name, actualdep]] << depends_array
         end
       end
     end
 
-    #this block prints out 'installed package: shared library dependencies'
-    #puts @other_depends_files.size
-    #@other_depends_files.each_pair do |dep, actualdep|
-    #  pp "#{dep} requires #{actualdep.values.join(" ")}: #{actualdep}"
-    #end
   end
 
   def Depends.find_pkginfo_depends(pkginfo)
 
     files_contents = {}
-    pacman_packages = Dir.glob("/var/lib/pacman/local/*") 
+    pacman_packages = Dir.glob("#{@pacman_db}/*") 
     #fills @pkginfo_depends with names of dependencies from .PKGINFO
     pkginfo.each_pair do |key,value|
       if key == :depend
@@ -313,11 +305,10 @@ module Depends
   def Depends.getcovered(deplist, covered_deps, *current)
     #accepts two arrays as arguments, one of deps to check and the other is an array to fill with covered dependencies found by this method
     full_package_names = []
-    pacmandb = '/var/lib/pacman/local'
-
+=begin
     #for each dependency listed that isn't already covered...
     deplist.each do |pkgname|
-      Dir.glob("#{pacmandb}/*").each do |folder|
+      Dir.glob("#{@pacman_db}/*").each do |folder|
         #if File.basename(folder).start_with?(pkgname)  #problematic because 'sh' matches a lot of things
         #if the folder name matches the pkgname
         if File.basename(folder).scan(/(.*)-([^-]*)-([^-]*)/)[0][0] == pkgname
@@ -325,15 +316,18 @@ module Depends
         end
       end
     end
+=end
+    full_package_names = Pacman.load_db(deplist)
     
+    pp full_package_names
     #open the depends file and get all dependencies it specifies and sticks it in covered_deps
     full_package_names.each do |folder|
       package = Pacman.new(File.join(folder, 'depends'))
       package.load
       package.depends.each do |dep|
         if not covered_deps.include?(dep) and not package.depends.empty? #watch upcase
-          #puts "Currently examined dep: #{dep}"
-          #puts package.depends.inspect
+          puts "Currently examined dep: #{dep}"
+          puts package.depends.inspect
           #puts "Covered depedencies: #{(dep.to_a + covered_deps).join(" ")}"
           covered_deps << dep 
           Depends.getcovered([dep], covered_deps)  #apply this function to the dep too!
@@ -347,10 +341,9 @@ module Depends
   def Depends.getprovides(deplist, smart_provides)
     #get all the provides of all dependencies listed
     full_package_names = []
-    pacmandb = '/var/lib/pacman/local'
 
     deplist.each do |pkgname|
-      Dir.glob("#{pacmandb}/*").each do |folder|
+      Dir.glob("#{@pacman_db}/*").each do |folder|
         #if File.basename(folder).start_with?(pkgname)  #problematic because 'sh' matches a lot of things
         #if the folder name matches the pkgname
         if File.basename(folder).scan(/(.*)-([^-]*)-([^-]*)/)[0][0] == pkgname
@@ -363,7 +356,7 @@ module Depends
       package = Pacman.new(File.join(folder, 'depends'))
       package.load
       package.provides.each do |prov|
-        if not covered_deps.include?(dep) and not package.provides.empty? #watch upcase
+        if not covered_deps.include?(dep) and not package.provides.empty?
           smart_provides << prov
         end
       end

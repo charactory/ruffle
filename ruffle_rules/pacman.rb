@@ -18,50 +18,70 @@
 #
 ##module
 
-  class Pacman
-    attr_reader :depends, :optdepends, :provides, :conflicts
+class Pacman
+  attr_reader :depends, :optdepends, :provides, :conflicts
 
-    def initialize(package)
-      @package = package
+  def initialize(package)
+     @package = package
 
-      @depends = []
-      @optdepends = []
-      @provides = []
-      @conflicts = []
-      attrs = [@depends, @optdepends, @provides, @conflicts]
-      #attrs.each {|x| puts x.class}
+    @depends = []
+    @optdepends = []
+    @provides = []
+    @conflicts = []
+    attrs = [@depends, @optdepends, @provides, @conflicts]
+    #attrs.each {|x| puts x.class}
+  end
+
+  def load
+    #current_attr = String.new
+    lines = File.open(@package).readlines.join
+    vars = lines.scan(/^%(.*)%\n([^%]*)/)
+    vars.each do |array|
+      attr_name = array[0].downcase
+      #careful: newline may be a problem
+      if attr_name == 'depends'
+        store_name(array,@depends)
+        break
+      elsif attr_name == 'optdepends'
+        store_name(array,@optdepends)
+        break
+      elsif attr_name == 'provides'
+        store_name(array,@provides)
+        break
+      elsif attr_name == 'conflicts'
+        store_name(array,@conflicts)
+        break
+      end
     end
 
-    def load
-      #current_attr = String.new
-      lines = File.open(@package).readlines.join
-      vars = lines.scan(/^%(.*)%\n([^%]*)/)
-      vars.each do |array|
-        attr_name = array[0].downcase
-        #careful: newline may be a problem
-        if attr_name == 'depends'
-          store_name(array,@depends)
-          break
-        elsif attr_name == 'optdepends'
-          store_name(array,@optdepends)
-          break
-        elsif attr_name == 'provides'
-          store_name(array,@provides)
-          break
-        elsif attr_name == 'conflicts'
-          store_name(array,@conflicts)
-          break
+  end
+
+  def store_name(array, attr)
+    #remove <>=: signs
+    array[1].strip.to_a.each {|x| attr << x.split('>')[0].split('<')[0].split('=')[0].split(':')[0].to_s.chomp}
+  end
+    
+    
+  def Pacman.load_db(deplist)
+    #accepts two arrays as arguments, one of deps to check and the other is an array to fill with covered dependencies found by this method
+    full_package_names = []
+    pacman_db = '/var/lib/pacman/local/'
+    #for each dependency listed that isn't already covered...
+    deplist.each do |pkgname|
+      Dir[pacman_db + "*"].each do |folder|
+        #if File.basename(folder).start_with?(pkgname)  #problematic because 'sh' matches a lot of things
+        #if the folder name matches the pkgname
+        if File.basename(folder).scan(/(.*)-([^-]*)-([^-]*)/)[0][0] == pkgname
+          full_package_names << folder #contains full path
         end
       end
-
     end
 
-    def store_name(array, attr)
-      #remove <>=: signs
-      array[1].strip.to_a.each {|x| attr << x.split('>')[0].split('<')[0].split('=')[0].split(':')[0].to_s.chomp}
-    end
-    
+    return full_package_names
   end
+
+    
+end
 
 
 #require 'pp'
