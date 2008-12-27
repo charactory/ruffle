@@ -33,6 +33,7 @@ module Depends
     @script_depends = {'ruby' => [], 'perl' => [], 'tk' => [], 'wish' => [], 'expect' => [], 'python' => [], 'bash' => []}
 
     @smart_depends = []
+    @smart_provides = []
 
     Depends.fill_libcache
     Depends.get_files(file_list)
@@ -103,7 +104,7 @@ module Depends
     dependlist.each do |x|
       if covered_depends.include?(x) and @other_depends_files.keys.include?(x)
         puts "W: Dependency included but already satisfied: (#{x})"
-      elsif not @smart_depends.include?(x) and not @smart_provides.include(x)
+      elsif not @smart_depends.include?(x) and not @smart_provides.include?(x)
         puts "W: Dependency included and not needed: (#{x})"
       end
     end
@@ -174,7 +175,6 @@ module Depends
       else
 
         #this is where we test for scripts
-        #puts "Not a shared library"
         File.open(File.join(SANDBOX,file)).each_line do |line|
 
           script_depends.each_key do |lang|
@@ -195,11 +195,6 @@ module Depends
     depends_files.each_pair do |f,libs|
       pp "#{f}: #{libs.join(" ")}"
     end
-
-    #@libcache['i686'].each_key do |key|
-    #  puts "key:#{key}"
-    #  puts "value:#{@libcache['i686'][key]}"
-    #end
 
   end
 
